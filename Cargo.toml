@@ -1,0 +1,42 @@
+[package]
+name = "did-bio-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Data model and resolution for the did:bio DID method (W3C DID 1.0), anchored on the Solana bio-did-registry"
+license = "MIT"
+repository = "https://github.com/ekayana-labs/did-bio-core"
+documentation = "https://docs.rs/did-bio-core"
+readme = "README.md"
+keywords = ["did", "identity", "solana", "post-quantum", "ml-dsa"]
+categories = ["cryptography", "authentication", "encoding"]
+exclude = [".github/"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bs58 = "0.5"
+base64 = "0.22"
+
+# feature "pda"
+sha2 = { version = "0.10", optional = true }
+curve25519-dalek = { version = "4", optional = true, default-features = false, features = ["alloc"] }
+
+# feature "verify" / "fips"
+aws-lc-rs = { version = "1", optional = true }
+
+[dev-dependencies]
+sha2 = "0.10"
+
+[features]
+default = ["pda"]
+## PDA derivation (`find_did_account_address`) and the resolution drivers that
+## need it. Pure Rust: sha2 + curve25519-dalek.
+pda = ["dep:sha2", "dep:curve25519-dalek"]
+## Signature verification (Ed25519, ML-DSA-87) via aws-lc-rs.
+verify = ["dep:aws-lc-rs"]
+## Same as `verify`, but binds the FIPS-validated AWS-LC crypto module.
+fips = ["verify", "aws-lc-rs/fips"]
+
+[package.metadata.docs.rs]
+features = ["pda", "verify"]
