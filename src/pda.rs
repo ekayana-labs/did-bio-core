@@ -9,7 +9,7 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::account::{DID_SEED, PROGRAM_ID};
+use crate::account::{DID_SEED, KEY_BUFFER_SEED, PROGRAM_ID};
 
 const PDA_MARKER: &[u8] = b"ProgramDerivedAddress";
 
@@ -43,4 +43,12 @@ pub fn find_program_address(seeds: &[&[u8]], program_id: &[u8; 32]) -> ([u8; 32]
 /// (spec Section 4.4, Section 6.2 step 4).
 pub fn find_did_account_address(subject: &[u8; 32]) -> ([u8; 32], u8) {
     find_program_address(&[DID_SEED, subject], &PROGRAM_ID)
+}
+
+/// The key buffer address for `authority` uploading a large key into the
+/// registry account `did_account`:
+/// `find_program_address(["bio-did-key", did_account, authority], PROGRAM_ID)`
+/// (spec Section 6.3).
+pub fn find_key_buffer_address(did_account: &[u8; 32], authority: &[u8; 32]) -> ([u8; 32], u8) {
+    find_program_address(&[KEY_BUFFER_SEED, did_account, authority], &PROGRAM_ID)
 }
