@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-09
+
 ### Added
 
 - `KeyBufferState`, the decoder for the registry's `KeyBuffer` staging
@@ -31,5 +33,6 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Ed25519 and ML-DSA-87 signature verification (`verify` and `fips`
   features).
 
-[Unreleased]: https://github.com/ekayana-labs/did-bio-core/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ekayana-labs/did-bio-core/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/ekayana-labs/did-bio-core/releases/tag/v0.1.1
 [0.1.0]: https://github.com/ekayana-labs/did-bio-core/releases/tag/v0.1.0
