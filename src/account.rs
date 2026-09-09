@@ -44,6 +44,17 @@ pub const MAX_CONTROLLER_LEN: usize = 128;
 /// Maximum verification key material size (fits ML-DSA-87).
 pub const MAX_KEY_DATA_LEN: usize = 2592;
 
+/// PDA seed prefix for key buffers:
+/// `["bio-did-key", did_account, authority]` (spec Section 6.3).
+pub const KEY_BUFFER_SEED: &[u8] = b"bio-did-key";
+
+/// Key buffer discriminator: `sha256("account:KeyBuffer")[..8]`
+/// (spec Section 6.3).
+pub const KEY_BUFFER_DISCRIMINATOR: [u8; 8] = [150, 138, 44, 35, 255, 159, 45, 0];
+
+/// Size of a key buffer's fixed header; the key bytes follow it.
+pub const KEY_BUFFER_HEADER_LEN: usize = 8 + 32 + 32 + 1 + 1 + 2 + 4 + 4 + 4 + MAX_FRAGMENT_LEN;
+
 /// Verification method flag bits (spec Section 5.3).
 pub mod vm_flags {
     /// Listed in `authentication`.
@@ -282,6 +293,91 @@ impl DidAccountState {
     /// Find a service by fragment.
     pub fn find_service(&self, fragment: &str) -> Option<&StoredService> {
         self.services.iter().find(|s| s.fragment == fragment)
+    }
+}
+
+/// Deserialized state of a `KeyBuffer` staging account: a verification
+/// method whose key is too large for one transaction and arrives in chunks
+/// (spec Section 6.3). Clients read it to resume an interrupted upload.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyBufferState {
+    /// The DID account the pending method is destined for.
+    pub did_account: [u8; 32],
+    /// The only key allowed to write, finish, or close the buffer.
+    pub authority: [u8; 32],
+    /// PDA bump seed.
+    pub bump: u8,
+    /// Key algorithm of the pending method.
+    pub method_type: KeyType,
+    /// Flags of the pending method; bitwise OR of [`vm_flags`] values.
+    pub flags: u16,
+    /// Total key length, fixed when the buffer was opened.
+    pub key_len: usize,
+    /// Fragment of the pending method, without the leading `#`.
+    pub fragment: String,
+    /// The key bytes received so far, always a prefix of the key.
+    pub key_data: Vec<u8>,
+}
+
+impl KeyBufferState {
+    /// Decode key buffer account data: verify the 8 byte discriminator,
+    /// then read the fixed header and the bytes written so far.
+    pub fn from_account_data(data: &[u8]) -> Result<Self, Error> {
+        if data.len() < KEY_BUFFER_HEADER_LEN {
+            return Err(Error::InvalidAccountData(
+                "shorter than the key buffer header",
+            ));
+        }
+        if data[..KEY_BUFFER_DISCRIMINATOR.len()] != KEY_BUFFER_DISCRIMINATOR {
+            return Err(Error::InvalidAccountData("discriminator mismatch"));
+        }
+        let mut cursor = Cursor {
+            data: &data[KEY_BUFFER_DISCRIMINATOR.len()..],
+            pos: 0,
+        };
+        let did_account = cursor.read_array32()?;
+        let authority = cursor.read_array32()?;
+        let bump = cursor.read_u8()?;
+        let method_type = KeyType::from_tag(cursor.read_u8()?).ok_or(Error::InvalidAccountData(
+            "unknown verification method type tag",
+        ))?;
+        let flags = cursor.read_u16()?;
+        let key_len = cursor.read_u32()? as usize;
+        let written = cursor.read_u32()? as usize;
+        let fragment_len = cursor.read_u32()? as usize;
+        if fragment_len > MAX_FRAGMENT_LEN {
+            return Err(Error::InvalidAccountData(
+                "fragment length exceeds the maximum",
+            ));
+        }
+        let fragment = String::from_utf8(cursor.take(fragment_len)?.to_vec())
+            .map_err(|_| Error::InvalidAccountData("fragment is not valid UTF-8"))?;
+        let key = &data[KEY_BUFFER_HEADER_LEN..];
+        if key.len() != key_len || written > key_len {
+            return Err(Error::InvalidAccountData(
+                "key buffer length does not match its header",
+            ));
+        }
+        Ok(KeyBufferState {
+            did_account,
+            authority,
+            bump,
+            method_type,
+            flags,
+            key_len,
+            fragment,
+            key_data: key[..written].to_vec(),
+        })
+    }
+
+    /// Number of key bytes received so far.
+    pub fn written(&self) -> usize {
+        self.key_data.len()
+    }
+
+    /// True once every byte of the key has been written.
+    pub fn is_complete(&self) -> bool {
+        self.key_data.len() == self.key_len
     }
 }
 

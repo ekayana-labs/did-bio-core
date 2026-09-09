@@ -14,12 +14,14 @@
 //!   method type (`JsonWebKey` / `AKP`).
 //! - [`DidAccountState`] - a dependency free deserializer for the
 //!   registry's on chain account format.
+//! - [`KeyBufferState`] - the staging account through which keys larger
+//!   than one transaction (ML-DSA-87) are uploaded in chunks.
 //! - [`resolve_from_account`] - steps 6-9 of the resolution algorithm
 //!   (spec Section 6.2) as a pure function, with the generative fallback;
 //!   [`resolve_with`] / [`resolve_with_async`] drive it through a
 //!   pluggable [`RegistryReader`].
-//! - [`find_did_account_address`] (feature `pda`) - PDA derivation
-//!   without a Solana SDK dependency.
+//! - [`find_did_account_address`] and [`find_key_buffer_address`]
+//!   (feature `pda`) - PDA derivation without a Solana SDK dependency.
 //!
 //! # Resolution without a network
 //!
@@ -74,7 +76,9 @@ pub mod resolve;
 #[cfg(feature = "verify")]
 pub mod verify;
 
-pub use account::{DidAccountState, KeyType, StoredService, StoredVerificationMethod};
+pub use account::{
+    DidAccountState, KeyBufferState, KeyType, StoredService, StoredVerificationMethod,
+};
 pub use did::{BioDid, DidUrl, Network};
 pub use document::{
     AkpPublicJwk, DidDocument, DidDocumentMetadata, DidResolution, DidResolutionMetadata,
@@ -82,7 +86,7 @@ pub use document::{
 };
 pub use error::{resolution_error, Error};
 #[cfg(feature = "pda")]
-pub use pda::{find_did_account_address, find_program_address};
+pub use pda::{find_did_account_address, find_key_buffer_address, find_program_address};
 pub use resolve::{
     deactivated_document, generative_document, materialize_document, resolve_from_account,
     resolve_str, AsyncRegistryReader, RawAccount, RegistryReader,

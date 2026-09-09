@@ -1,6 +1,6 @@
 [package]
 name = "did-bio-core"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.85"
 description = "Data model and resolution for the did:bio DID method (W3C DID 1.0), anchored on the Solana bio-did-registry"
