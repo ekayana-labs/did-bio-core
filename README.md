@@ -1,5 +1,12 @@
 # did-bio-core
 
+[![CI](https://github.com/ekayana-labs/did-bio-core/actions/workflows/main.yml/badge.svg)](https://github.com/ekayana-labs/did-bio-core/actions/workflows/main.yml)
+[![crates.io](https://img.shields.io/crates/v/did-bio-core.svg)](https://crates.io/crates/did-bio-core)
+[![docs.rs](https://img.shields.io/docsrs/did-bio-core)](https://docs.rs/did-bio-core)
+[![MSRV](https://img.shields.io/crates/msrv/did-bio-core)](Cargo.toml)
+[![license](https://img.shields.io/crates/l/did-bio-core)](LICENSE)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ekayana-labs/did-bio-core/badge)](https://scorecard.dev/viewer/?uri=github.com/ekayana-labs/did-bio-core)
+
 Data model and resolution for the **`did:bio`** DID method - a
 [W3C DID 1.0](https://www.w3.org/TR/did-1.0/) conformant method for
 biological research data, anchored on the Solana blockchain by the
