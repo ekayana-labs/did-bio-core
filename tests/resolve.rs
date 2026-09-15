@@ -3,11 +3,15 @@
 mod common;
 
 use common::{
-    example_did, registry_account, rich_account_image, AccountImage, EXAMPLE_DID, EXAMPLE_MULTIKEY,
+    example_did, owned_account_image, registry_account, rich_account_image, AccountImage,
+    EXAMPLE_DID, EXAMPLE_MULTIKEY, OWNED_AUTHORITY, OWNED_SUBJECT,
 };
 use did_bio_core::account::PROGRAM_ID;
 use did_bio_core::document::{ML_DSA_87_PUBLIC_KEY_LEN, VM_TYPE_JSON_WEB_KEY, VM_TYPE_MULTIKEY};
-use did_bio_core::{resolve_from_account, RawAccount, VerificationMaterial};
+use did_bio_core::{
+    generative_document, resolution_error, resolve_from_account, resolve_str, BioDid, Network,
+    RawAccount, VerificationMaterial,
+};
 
 #[test]
 fn materializes_rich_document() {
@@ -260,4 +264,65 @@ fn block_on<F: core::future::Future>(future: F) -> F::Output {
         Poll::Ready(output) => output,
         Poll::Pending => unreachable!("test future never suspends"),
     }
+}
+
+#[test]
+fn owned_subject_without_an_account_is_not_found() {
+    // Section 6.2 step 6: only a key subject has a generative document.
+    let owned = BioDid::new(Network::Devnet, OWNED_SUBJECT);
+    assert!(generative_document(&owned).is_none());
+
+    let resolution = resolve_from_account(&owned, None);
+    assert!(resolution.document.is_none());
+    assert_eq!(
+        resolution.resolution_metadata.error.as_deref(),
+        Some(resolution_error::NOT_FOUND)
+    );
+
+    // A foreign or empty account at the PDA counts as absent, and an
+    // absent owned DID must not fall back to a document nobody controls.
+    let foreign = RawAccount {
+        owner: [0u8; 32],
+        data: owned_account_image(&OWNED_SUBJECT, &OWNED_AUTHORITY),
+    };
+    assert_eq!(
+        resolve_from_account(&owned, Some(&foreign))
+            .resolution_metadata
+            .error
+            .as_deref(),
+        Some(resolution_error::NOT_FOUND)
+    );
+    assert_eq!(
+        resolve_str(&owned.to_string(), None)
+            .resolution_metadata
+            .error
+            .as_deref(),
+        Some(resolution_error::NOT_FOUND)
+    );
+}
+
+#[test]
+fn owned_subject_materializes_from_its_account() {
+    let owned = BioDid::new(Network::Devnet, OWNED_SUBJECT);
+    let account = registry_account(owned_account_image(&OWNED_SUBJECT, &OWNED_AUTHORITY));
+    let resolution = resolve_from_account(&owned, Some(&account));
+    assert_eq!(resolution.resolution_metadata.error, None);
+    assert_eq!(
+        resolution.document_metadata.version_id.as_deref(),
+        Some("1")
+    );
+    let document = resolution.document.unwrap();
+    assert_eq!(document.id, owned.to_string());
+    assert_eq!(document.verification_method.len(), 1);
+    let vm = &document.verification_method[0];
+    assert_eq!(vm.id, owned.url("default"));
+    // The document's only key is the authority's, not the subject.
+    match &vm.material {
+        VerificationMaterial::PublicKeyMultibase(multikey) => {
+            let (_, key) = did_bio_core::multikey::decode(multikey).unwrap();
+            assert_eq!(key, OWNED_AUTHORITY.to_vec());
+        }
+        other => panic!("unexpected material: {other:?}"),
+    }
+    assert_eq!(document.capability_invocation, vec![owned.url("default")]);
 }

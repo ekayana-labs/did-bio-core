@@ -102,6 +102,35 @@ pub fn rich_account_image(subject: &[u8; 32]) -> Vec<u8> {
         .bytes
 }
 
+/// Pinned across the registry program and the backend: the owned subject
+/// of authority `[0x11; 32]` and nonce 42.
+pub const OWNED_AUTHORITY: [u8; 32] = [0x11; 32];
+pub const OWNED_NONCE: u64 = 42;
+pub const OWNED_SUBJECT: [u8; 32] = [
+    176, 5, 37, 51, 53, 114, 109, 56, 180, 140, 48, 89, 115, 119, 13, 138, 192, 54, 110, 20, 205,
+    247, 212, 197, 39, 52, 9, 159, 203, 10, 250, 28,
+];
+
+/// The image `initialize_owned` writes: version 1, the authority's key as
+/// the protected default method, nothing else.
+pub fn owned_account_image(subject: &[u8; 32], authority: &[u8; 32]) -> Vec<u8> {
+    AccountImage::new()
+        .u64(1)
+        .u8(255)
+        .raw(subject)
+        .u8(0)
+        .i64(1_753_228_800)
+        .u32(0)
+        .u32(0)
+        .u32(1)
+        .string(DEFAULT_FRAGMENT)
+        .u8(0)
+        .u16(vm_flags::DEFAULT)
+        .byte_vec(authority)
+        .u32(0)
+        .bytes
+}
+
 pub fn registry_account(data: Vec<u8>) -> RawAccount {
     RawAccount {
         owner: PROGRAM_ID,

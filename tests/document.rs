@@ -37,7 +37,7 @@ const SPEC_GENERATIVE_DOCUMENT: &str = r#"{
 
 #[test]
 fn generative_document_matches_spec_verbatim() {
-    let document = generative_document(&example_did());
+    let document = generative_document(&example_did()).expect("a key subject");
     let produced = serde_json::to_value(&document).unwrap();
     let expected: serde_json::Value = serde_json::from_str(SPEC_GENERATIVE_DOCUMENT).unwrap();
     assert_eq!(produced, expected);
