@@ -100,14 +100,39 @@ impl Network {
 pub struct BioDid {
     /// Cluster selected by the `network` segment.
     pub network: Network,
-    /// The 32 byte Ed25519 subject key encoded in the `idstring`.
+    /// The 32 byte subject encoded in the `idstring`: an Ed25519 key for a
+    /// key subject, a program derived address for an owned subject.
     pub subject: [u8; SUBJECT_KEY_LEN],
 }
 
+/// Whether 32 bytes decode to a point on the Ed25519 curve, which is what
+/// separates a key subject from an owned one (spec Section 4.2).
+pub fn is_on_curve(bytes: &[u8; 32]) -> bool {
+    curve25519_dalek::edwards::CompressedEdwardsY(*bytes)
+        .decompress()
+        .is_some()
+}
+
 impl BioDid {
-    /// Build a DID from a network and subject key (spec Section 4.2 Generation).
+    /// Build a DID from a network and subject (spec Section 4.2 Generation).
     pub const fn new(network: Network, subject: [u8; SUBJECT_KEY_LEN]) -> Self {
         BioDid { network, subject }
+    }
+
+    /// The DID that `initialize_owned(nonce)` signed by `authority` creates
+    /// on `network` (spec Section 4.2): its subject is
+    /// `find_program_address(["bio-did-owned", authority, nonce_le])`.
+    #[cfg(feature = "pda")]
+    pub fn owned(network: Network, authority: &[u8; 32], nonce: u64) -> Self {
+        let (subject, _bump) = crate::pda::find_owned_subject(authority, nonce);
+        BioDid { network, subject }
+    }
+
+    /// True when the subject is an Ed25519 key, so the DID has a generative
+    /// document; false for an owned subject, which exists only through the
+    /// registry (spec Section 6.2 step 6).
+    pub fn is_key_subject(&self) -> bool {
+        is_on_curve(&self.subject)
     }
 
     /// Parse and validate a DID against the ABNF of spec Section 4.1 and the

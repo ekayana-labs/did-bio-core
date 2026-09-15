@@ -18,6 +18,11 @@ pub const PROGRAM_ID: [u8; 32] = [
 /// PDA seed prefix for DID accounts: `["bio-did", subject]` (spec Section 4.4).
 pub const DID_SEED: &[u8] = b"bio-did";
 
+/// Seed prefix of an owned subject, derived by `initialize_owned` from its
+/// authority: `find_program_address(["bio-did-owned", authority, nonce_le])`
+/// (spec Section 4.2).
+pub const OWNED_SUBJECT_SEED: &[u8] = b"bio-did-owned";
+
 /// Reserved fragment of the subject key's verification method (spec Section 5.6).
 pub const DEFAULT_FRAGMENT: &str = "default";
 

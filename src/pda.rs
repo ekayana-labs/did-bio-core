@@ -9,15 +9,10 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::account::{DID_SEED, KEY_BUFFER_SEED, PROGRAM_ID};
+use crate::account::{DID_SEED, KEY_BUFFER_SEED, OWNED_SUBJECT_SEED, PROGRAM_ID};
+use crate::did::is_on_curve;
 
 const PDA_MARKER: &[u8] = b"ProgramDerivedAddress";
-
-fn is_on_curve(bytes: &[u8; 32]) -> bool {
-    curve25519_dalek::edwards::CompressedEdwardsY(*bytes)
-        .decompress()
-        .is_some()
-}
 
 /// Find the program derived address and bump seed for `seeds` under
 /// `program_id`, exactly as `Pubkey::find_program_address` does.
@@ -43,6 +38,17 @@ pub fn find_program_address(seeds: &[&[u8]], program_id: &[u8; 32]) -> ([u8; 32]
 /// (spec Section 4.4, Section 6.2 step 4).
 pub fn find_did_account_address(subject: &[u8; 32]) -> ([u8; 32], u8) {
     find_program_address(&[DID_SEED, subject], &PROGRAM_ID)
+}
+
+/// The owned subject that `initialize_owned(nonce)` signed by `authority`
+/// creates: `find_program_address(["bio-did-owned", authority, nonce_le],
+/// PROGRAM_ID)` (spec Section 4.2). Off the curve by construction, so the
+/// DID has no generative document.
+pub fn find_owned_subject(authority: &[u8; 32], nonce: u64) -> ([u8; 32], u8) {
+    find_program_address(
+        &[OWNED_SUBJECT_SEED, authority, &nonce.to_le_bytes()],
+        &PROGRAM_ID,
+    )
 }
 
 /// The key buffer address for `authority` uploading a large key into the

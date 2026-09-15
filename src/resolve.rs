@@ -104,12 +104,18 @@ pub fn materialize_document(did: &BioDid, state: &DidAccountState) -> Result<Did
     Ok(document)
 }
 
-/// The generative DID document for a DID with no registry entry
-/// (spec Section 5.6): the subject key as a protected `#default` method carrying
-/// all five verification relationships.
-pub fn generative_document(did: &BioDid) -> DidDocument {
-    materialize_document(did, &DidAccountState::generative(did.subject))
-        .expect("generative state always materializes")
+/// The generative DID document for a key subject with no registry entry
+/// (spec Section 5.6): the subject key as a protected `#default` method
+/// carrying all five verification relationships. `None` for an owned
+/// subject, which has no key and therefore no generative document.
+pub fn generative_document(did: &BioDid) -> Option<DidDocument> {
+    if !did.is_key_subject() {
+        return None;
+    }
+    Some(
+        materialize_document(did, &DidAccountState::generative(did.subject))
+            .expect("generative state always materializes"),
+    )
 }
 
 /// The minimal document of a deactivated DID (spec Section 5.7).
@@ -128,16 +134,19 @@ pub fn deactivated_document(did: &BioDid) -> DidDocument {
 /// `account` is the result of fetching the DID's PDA
 /// ([`crate::pda::find_did_account_address`]): `None` when no account
 /// exists. An account that is empty or not owned by the registry program
-/// resolves generatively (step 6). Undecodable account data yields an
+/// counts as absent (step 6): a key subject then resolves generatively,
+/// an owned subject to `notFound`. Undecodable account data yields an
 /// `internalError` resolution, never a fallback.
 pub fn resolve_from_account(did: &BioDid, account: Option<&RawAccount>) -> DidResolution {
     let account = match account {
         Some(account) if account.owner == PROGRAM_ID && !account.data.is_empty() => account,
         _ => {
-            return DidResolution::success(
-                generative_document(did),
-                DidDocumentMetadata::generative(),
-            )
+            return match generative_document(did) {
+                Some(document) => {
+                    DidResolution::success(document, DidDocumentMetadata::generative())
+                }
+                None => DidResolution::error(resolution_error::NOT_FOUND),
+            }
         }
     };
 

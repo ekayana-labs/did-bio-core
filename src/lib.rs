@@ -20,14 +20,18 @@
 //!   (spec Section 6.2) as a pure function, with the generative fallback;
 //!   [`resolve_with`] / [`resolve_with_async`] drive it through a
 //!   pluggable [`RegistryReader`].
-//! - [`find_did_account_address`] and [`find_key_buffer_address`]
-//!   (feature `pda`) - PDA derivation without a Solana SDK dependency.
+//! - [`find_did_account_address`], [`find_key_buffer_address`] and
+//!   [`find_owned_subject`] (feature `pda`) - PDA derivation without a
+//!   Solana SDK dependency.
 //!
 //! # Resolution without a network
 //!
-//! Every syntactically valid `did:bio` DID resolves; absent on chain
-//! state yields the deterministic *generative* document containing the
-//! subject key itself:
+//! A subject is either an Ed25519 key or an *owned* subject, a program
+//! derived address that `initialize_owned` binds to the wallet that signed
+//! for it ([`BioDid::is_key_subject`] tells them apart). Every key subject
+//! resolves; absent on chain state yields the deterministic *generative*
+//! document containing the key itself, while an owned subject without an
+//! account resolves to `notFound`:
 //!
 //! ```
 //! use did_bio_core::{resolve_from_account, BioDid};
@@ -79,6 +83,7 @@ pub mod verify;
 pub use account::{
     DidAccountState, KeyBufferState, KeyType, StoredService, StoredVerificationMethod,
 };
+pub use did::is_on_curve;
 pub use did::{BioDid, DidUrl, Network};
 pub use document::{
     AkpPublicJwk, DidDocument, DidDocumentMetadata, DidResolution, DidResolutionMetadata,
@@ -86,7 +91,9 @@ pub use document::{
 };
 pub use error::{resolution_error, Error};
 #[cfg(feature = "pda")]
-pub use pda::{find_did_account_address, find_key_buffer_address, find_program_address};
+pub use pda::{
+    find_did_account_address, find_key_buffer_address, find_owned_subject, find_program_address,
+};
 pub use resolve::{
     deactivated_document, generative_document, materialize_document, resolve_from_account,
     resolve_str, AsyncRegistryReader, RawAccount, RegistryReader,
