@@ -2,8 +2,8 @@
 
 mod common;
 
-use common::{example_did, EXAMPLE_DID, EXAMPLE_IDSTRING};
-use did_bio_core::{BioDid, DidUrl, Error, Network};
+use common::{example_did, EXAMPLE_DID, EXAMPLE_IDSTRING, OWNED_SUBJECT};
+use did_bio_core::{is_on_curve, BioDid, DidUrl, Error, Network};
 
 #[test]
 fn parses_all_network_forms() {
@@ -105,4 +105,17 @@ fn serde_did_as_string() {
     let back: BioDid = serde_json::from_str(&json).unwrap();
     assert_eq!(back, did);
     assert!(serde_json::from_str::<BioDid>("\"did:bio:nope\"").is_err());
+}
+
+#[test]
+fn key_subjects_are_curve_points() {
+    let did = example_did();
+    assert!(did.is_key_subject());
+    // The program-derived subject of an owned DID parses like any other
+    // idstring but is not a key.
+    let owned = BioDid::new(Network::Devnet, OWNED_SUBJECT);
+    assert!(!owned.is_key_subject());
+    assert!(!is_on_curve(&OWNED_SUBJECT));
+    let parsed: BioDid = owned.to_string().parse().unwrap();
+    assert_eq!(parsed, owned);
 }

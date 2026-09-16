@@ -3,9 +3,12 @@
 
 mod common;
 
-use common::example_did;
-use did_bio_core::account::{KEY_BUFFER_SEED, PROGRAM_ID};
-use did_bio_core::{find_did_account_address, find_key_buffer_address, find_program_address};
+use common::{example_did, OWNED_AUTHORITY, OWNED_NONCE, OWNED_SUBJECT};
+use did_bio_core::account::{KEY_BUFFER_SEED, OWNED_SUBJECT_SEED, PROGRAM_ID};
+use did_bio_core::{
+    find_did_account_address, find_key_buffer_address, find_owned_subject, find_program_address,
+    is_on_curve, BioDid, Network,
+};
 
 #[test]
 fn spec_example_pda() {
@@ -49,4 +52,34 @@ fn key_buffer_pda_for_the_spec_example() {
         "2DLfor8ZYBiiGt6MMDhPB6tnDUKejkkotHfMG6xFDcnh"
     );
     assert_eq!(bump, 254);
+}
+
+#[test]
+fn owned_subject_matches_the_program() {
+    // The same vector is pinned in the registry crate's unit tests.
+    let (subject, _bump) = find_owned_subject(&OWNED_AUTHORITY, OWNED_NONCE);
+    assert_eq!(subject, OWNED_SUBJECT);
+    assert!(!is_on_curve(&subject), "an owned subject is never a key");
+    assert_eq!(
+        find_program_address(
+            &[
+                OWNED_SUBJECT_SEED,
+                &OWNED_AUTHORITY,
+                &OWNED_NONCE.to_le_bytes()
+            ],
+            &PROGRAM_ID
+        )
+        .0,
+        subject
+    );
+    assert_ne!(
+        find_owned_subject(&OWNED_AUTHORITY, OWNED_NONCE + 1).0,
+        subject
+    );
+    assert_ne!(find_owned_subject(&[0x12; 32], OWNED_NONCE).0, subject);
+
+    let did = BioDid::owned(Network::Devnet, &OWNED_AUTHORITY, OWNED_NONCE);
+    assert_eq!(did.subject, subject);
+    assert!(!did.is_key_subject());
+    assert_eq!(did.to_string().parse::<BioDid>().unwrap(), did);
 }

@@ -185,7 +185,7 @@ mod tests {
         let key_pair = Ed25519KeyPair::generate().unwrap();
         let subject: [u8; 32] = key_pair.public_key().as_ref().try_into().unwrap();
         let did = BioDid::new(crate::Network::Devnet, subject);
-        let document: DidDocument = generative_document(&did);
+        let document: DidDocument = generative_document(&did).unwrap();
 
         let message = b"authenticate as the subject key";
         let signature = key_pair.sign(message);

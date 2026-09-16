@@ -22,12 +22,12 @@ directly, with golden tests against the spec's own vectors.
 
 | Module | Spec | Contents |
 |---|---|---|
-| `did` | Section 4 | `BioDid` / `DidUrl` parsing and validation (ABNF, base58btc, network segments) |
+| `did` | Section 4 | `BioDid` / `DidUrl` parsing and validation (ABNF, base58btc, network segments), key vs owned subjects |
 | `multikey` | Section 5.2 | Multikey encode/decode (Ed25519 `z6Mk...`, X25519 `z6LS...`, secp256k1 `zQ3s...`) |
 | `document` | Section 5 | `DidDocument`, verification methods, services, resolution metadata |
 | `account` | Section 5-6 | Registry constants and a dependency free deserializer for the on chain `DidAccount` |
 | `resolve` | Section 6.2 | The resolution algorithm as a pure function, generative fallback included, plus sync/async `RegistryReader` drivers |
-| `pda` | Section 6.2(4) | `find_program_address` without a Solana SDK dependency *(feature `pda`, default)* |
+| `pda` | Section 4.2, 6.2(4) | `find_program_address`, DID account, key buffer and owned subject derivation without a Solana SDK dependency *(feature `pda`, default)* |
 | `verify` | Section 5.2 | Ed25519 + **ML-DSA-87 (FIPS 204)** signature verification via aws-lc-rs *(features `verify` / `fips`)* |
 
 The post quantum **ML-DSA-87** verification method type (`JsonWebKey`,
@@ -37,8 +37,11 @@ validation, and signature verification.
 
 ## Example
 
-Every syntactically valid `did:bio` DID resolves. Without on chain state,
-resolution yields the deterministic *generative* document:
+A subject is either an Ed25519 key or an *owned* subject, a program derived
+address bound to the wallet that created it (`BioDid::owned`,
+`find_owned_subject`). Every key subject resolves; without on chain state,
+resolution yields the deterministic *generative* document, while an owned
+subject without an account resolves to `notFound`:
 
 ```rust
 use did_bio_core::{resolve_from_account, BioDid};
@@ -50,6 +53,7 @@ let did: BioDid = "did:bio:devnet:2T6zLFvMx7NJac5qQtiKTaPhMwHLkwKETWjUK1yKv4tc"
 let resolution = resolve_from_account(&did, None);
 let document = resolution.document.unwrap();
 assert_eq!(document.id, did.to_string());
+assert!(did.is_key_subject());
 # Ok::<(), did_bio_core::Error>(())
 ```
 
@@ -63,7 +67,7 @@ never as "account missing" - see the withholding attack in spec Section 7.
 
 | Feature | Default | Adds |
 |---|---|---|
-| `pda` | yes | PDA derivation (`sha2`, `curve25519-dalek`) and the resolution drivers |
+| `pda` | yes | PDA derivation (`sha2`) and the resolution drivers |
 | `verify` | - | Ed25519 + ML-DSA-87 signature verification via `aws-lc-rs` |
 | `fips` | - | `verify`, linked against the FIPS validated AWS-LC module (build needs CMake + Go) |
 

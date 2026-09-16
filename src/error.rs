@@ -63,6 +63,8 @@ pub mod resolution_error {
     pub const INVALID_DID_URL: &str = "invalidDidUrl";
     /// An unexpected internal condition (e.g. undecodable registry state).
     pub const INTERNAL_ERROR: &str = "internalError";
+    /// An owned subject with no registry account: nothing to resolve.
+    pub const NOT_FOUND: &str = "notFound";
 }
 
 impl Error {

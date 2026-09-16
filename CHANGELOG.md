@@ -6,6 +6,27 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-16
+
+### Added
+
+- Owned subjects: `BioDid::is_key_subject` tells an Ed25519 key subject
+  from a program derived one, `is_on_curve` is exported, and
+  `find_owned_subject` / `BioDid::owned` (`pda` feature) derive the subject
+  that the registry's `initialize_owned(nonce)` creates for an authority,
+  with the `OWNED_SUBJECT_SEED` constant.
+- `resolution_error::NOT_FOUND` for an owned subject with no registry
+  account.
+
+### Changed
+
+- `resolve_from_account` and `resolve_str` resolve an owned subject
+  without an account to a `notFound` error instead of a generative
+  document, and `generative_document` now returns `Option<DidDocument>`
+  (`None` for owned subjects).
+- `curve25519-dalek` is a required dependency: the curve check is part of
+  the resolution algorithm, not only of PDA derivation.
+
 ## [0.1.1] - 2026-09-09
 
 ### Added
