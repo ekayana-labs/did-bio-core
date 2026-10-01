@@ -252,7 +252,8 @@ impl DidAccountState {
     ///
     /// The decoding is strict. It refuses anything the registry never
     /// writes, such as bytes past the state, an invalid fragment, unknown
-    /// flag bits, a key whose length does not match its type, a service
+    /// flag bits or flags the key type cannot carry, a key whose length
+    /// does not match its type, a service
     /// value or external controller outside its form, a fragment used twice,
     /// or entries left in a deactivated tombstone.
     pub fn from_account_data(data: &[u8]) -> Result<Self, Error> {
@@ -422,11 +423,7 @@ impl KeyBufferState {
         if !crate::did::is_valid_fragment(&fragment) {
             return Err(Error::InvalidAccountData("fragment is not valid"));
         }
-        if flags & !vm_flags::VALID_MASK != 0 {
-            return Err(Error::InvalidAccountData(
-                "unknown verification method flag bits",
-            ));
-        }
+        check_flags(method_type, flags)?;
         let key = &data[KEY_BUFFER_HEADER_LEN..];
         if key.len() != key_len || written > key_len || key_len != method_type.expected_key_len() {
             return Err(Error::InvalidAccountData(
@@ -454,6 +451,30 @@ impl KeyBufferState {
     pub fn is_complete(&self) -> bool {
         self.key_data.len() == self.key_len
     }
+}
+
+/// The flag rules every version of the registry has enforced. Only known
+/// bits are set, `CAPABILITY_INVOCATION` is on Ed25519 methods only, and an
+/// X25519 method takes no relationship other than `KEY_AGREEMENT`.
+fn check_flags(method_type: KeyType, flags: u16) -> Result<(), Error> {
+    if flags & !vm_flags::VALID_MASK != 0 {
+        return Err(Error::InvalidAccountData(
+            "unknown verification method flag bits",
+        ));
+    }
+    if flags & vm_flags::CAPABILITY_INVOCATION != 0 && method_type != KeyType::Ed25519 {
+        return Err(Error::InvalidAccountData(
+            "capabilityInvocation on a method that is not Ed25519",
+        ));
+    }
+    if method_type == KeyType::X25519
+        && flags & vm_flags::RELATIONSHIP_MASK & !vm_flags::KEY_AGREEMENT != 0
+    {
+        return Err(Error::InvalidAccountData(
+            "X25519 method outside keyAgreement",
+        ));
+    }
+    Ok(())
 }
 
 /// Minimal Borsh reader over the account body. Every length prefix is
@@ -590,11 +611,7 @@ impl<'a> Cursor<'a> {
             "unknown verification method type tag",
         ))?;
         let flags = self.read_u16()?;
-        if flags & !vm_flags::VALID_MASK != 0 {
-            return Err(Error::InvalidAccountData(
-                "unknown verification method flag bits",
-            ));
-        }
+        check_flags(method_type, flags)?;
         let key_data = self.read_byte_vec()?;
         if key_data.len() != method_type.expected_key_len() {
             return Err(Error::InvalidAccountData(

@@ -227,6 +227,16 @@ fn rejects_malformed_key_buffers() {
     long_fragment[84..88].copy_from_slice(&33u32.to_le_bytes());
     assert!(KeyBufferState::from_account_data(&long_fragment).is_err());
 
+    // capabilityInvocation on an ML-DSA-87 method
+    let mut capability = good.clone();
+    capability[74..76].copy_from_slice(&(1u16 << 3).to_le_bytes());
+    assert!(matches!(
+        KeyBufferState::from_account_data(&capability),
+        Err(Error::InvalidAccountData(
+            "capabilityInvocation on a method that is not Ed25519"
+        ))
+    ));
+
     // unknown key type tag
     let mut bad_tag = good;
     bad_tag[73] = 9;
@@ -286,6 +296,18 @@ fn rejects_states_the_registry_never_writes() {
             .u32(0)
             .bytes,
         "unknown verification method flag bits",
+    );
+    refused(
+        method(header().u32(0).u32(0).u32(1), "k", 3, 1 << 3, &[1; 2592])
+            .u32(0)
+            .bytes,
+        "capabilityInvocation on a method that is not Ed25519",
+    );
+    refused(
+        method(header().u32(0).u32(0).u32(1), "k", 1, 1 << 2 | 1, &[1; 32])
+            .u32(0)
+            .bytes,
+        "X25519 method outside keyAgreement",
     );
     refused(
         method(header().u32(0).u32(0).u32(1), "k", 0, 1, &[1; 3])

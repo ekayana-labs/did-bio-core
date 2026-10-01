@@ -39,6 +39,15 @@ fn key_type() -> impl Strategy<Value = KeyType> {
     ]
 }
 
+/// The bits of `flags` that every registry version accepts on `method_type`.
+fn allowed_flags(method_type: KeyType, flags: u16) -> u16 {
+    match method_type {
+        KeyType::Ed25519 => flags & vm_flags::VALID_MASK,
+        KeyType::X25519 => flags & (vm_flags::KEY_AGREEMENT | vm_flags::PROTECTED),
+        _ => flags & vm_flags::VALID_MASK & !vm_flags::CAPABILITY_INVOCATION,
+    }
+}
+
 /// A state the registry could hold, with unique fragments and every field
 /// in its form.
 fn state() -> impl Strategy<Value = DidAccountState> {
@@ -46,7 +55,7 @@ fn state() -> impl Strategy<Value = DidAccountState> {
         |(fragment, method_type, flags, fill)| StoredVerificationMethod {
             fragment,
             method_type,
-            flags: flags & vm_flags::VALID_MASK,
+            flags: allowed_flags(method_type, flags),
             key_data: vec![fill; method_type.expected_key_len()],
         },
     );
