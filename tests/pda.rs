@@ -101,3 +101,29 @@ fn seeds_the_runtime_refuses_find_no_address() {
 fn find_program_address_panics_where_the_sdk_does() {
     find_program_address(&[&[1u8; 33]], &PROGRAM_ID);
 }
+
+proptest::proptest! {
+    /// Random seeds and program IDs, including seeds the runtime refuses,
+    /// against the Solana SDK's own derivation.
+    #[test]
+    fn derivation_matches_the_sdk(
+        seeds in proptest::collection::vec(
+            proptest::prop_oneof![
+                9 => proptest::collection::vec(proptest::prelude::any::<u8>(), 0..=32),
+                1 => proptest::collection::vec(proptest::prelude::any::<u8>(), 33..=34),
+            ],
+            0..=17,
+        ),
+        program_id in proptest::prelude::any::<[u8; 32]>(),
+        registry in proptest::prelude::any::<bool>(),
+    ) {
+        let program_id = if registry { PROGRAM_ID } else { program_id };
+        let seeds: Vec<&[u8]> = seeds.iter().map(Vec::as_slice).collect();
+        let sdk = solana_address::Address::try_find_program_address(
+            &seeds,
+            &solana_address::Address::new_from_array(program_id),
+        )
+        .map(|(address, bump)| (address.to_bytes(), bump));
+        proptest::prop_assert_eq!(try_find_program_address(&seeds, &program_id), sdk);
+    }
+}
