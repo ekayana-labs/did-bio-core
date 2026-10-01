@@ -28,7 +28,7 @@ directly, with golden tests against the spec's own vectors.
 | `account` | Section 5-6 | Registry constants and a dependency free deserializer for the on chain `DidAccount` |
 | `resolve` | Section 6.2 | The resolution algorithm as a pure function, generative fallback included, sync and async `RegistryReader` drivers, and DID URL dereferencing |
 | `pda` | Section 4.2, 6.2(4) | `find_program_address`, DID account, key buffer and owned subject derivation without a Solana SDK dependency, behind the default `pda` feature |
-| `verify` | Section 5.2 | Ed25519 and ML-DSA-87 (FIPS 204) signature verification via aws-lc-rs, behind the `verify` and `fips` features |
+| `verify` | Section 5.2 | Ed25519, ES256K (secp256k1) and ML-DSA-87 (FIPS 204) signature verification via aws-lc-rs, behind the `verify` and `fips` features |
 
 The post quantum ML-DSA-87 verification method type is supported end to
 end, from the on chain type tag and the JWK mapping to key length
@@ -71,7 +71,7 @@ withholding attack this prevents.
 | Feature | Default | Adds |
 |---|---|---|
 | `pda` | yes | PDA derivation (`sha2`) and the resolution drivers |
-| `verify` | no | Ed25519 and ML-DSA-87 signature verification via `aws-lc-rs` |
+| `verify` | no | Ed25519, ES256K and ML-DSA-87 signature verification via `aws-lc-rs` |
 | `fips` | no | `verify`, linked against the FIPS validated AWS-LC module, whose build needs CMake and Go |
 
 With default features the dependency tree is pure Rust. It holds `serde`,

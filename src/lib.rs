@@ -59,7 +59,7 @@
 //! - `pda` is on by default. It adds PDA derivation
 //!   ([`find_did_account_address`]) and the [`resolve_with`] and
 //!   [`resolve_with_async`] drivers, in pure Rust with `sha2`.
-//! - `verify` adds signature verification for Ed25519 and ML-DSA-87
+//! - `verify` adds signature verification for Ed25519, ES256K and ML-DSA-87
 //!   verification methods via `aws-lc-rs`.
 //! - `fips` is like `verify`, but binds the FIPS validated AWS-LC module.
 //!

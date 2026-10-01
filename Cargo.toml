@@ -35,7 +35,7 @@ default = ["pda"]
 ## PDA derivation (`find_did_account_address`, `find_owned_subject`) and the
 ## resolution drivers that need it. It is pure Rust and uses sha2.
 pda = ["dep:sha2"]
-## Signature verification (Ed25519, ML-DSA-87) via aws-lc-rs.
+## Signature verification (Ed25519, ES256K, ML-DSA-87) via aws-lc-rs.
 verify = ["dep:aws-lc-rs"]
 ## Same as `verify`, but binds the FIPS-validated AWS-LC crypto module.
 fips = ["verify", "aws-lc-rs/fips"]

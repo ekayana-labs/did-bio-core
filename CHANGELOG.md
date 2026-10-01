@@ -13,6 +13,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 - `LocalAsyncRegistryReader` and `resolve_with_async_local` take fetchers
   whose futures are not `Send`.
 - `dereference` and `DidDocument::dereference` find what a DID URL names.
+- `verify_secp256k1` and `verify_with_method` verify ES256K signatures by
+  secp256k1 methods.
 
 ### Changed
 

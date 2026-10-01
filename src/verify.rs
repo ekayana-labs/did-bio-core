@@ -6,14 +6,15 @@
 //! confirm at runtime.
 //!
 //! Supported algorithms follow the method's verification material types
-//! (spec Section 5.2). They are Ed25519, a `Multikey` starting `z6Mk`, and
-//! ML-DSA-87 (FIPS 204), a `JsonWebKey` with `kty "AKP"` and
+//! (spec Section 5.2). They are Ed25519, a `Multikey` starting `z6Mk`,
+//! ES256K, ECDSA over secp256k1 with SHA-256 for a `Multikey` starting
+//! `zQ3s`, and ML-DSA-87 (FIPS 204), a `JsonWebKey` with `kty "AKP"` and
 //! `alg "ML-DSA-87"`. X25519 is a key agreement type and cannot verify
-//! signatures, and secp256k1 verification is out of scope for this crate.
+//! signatures. ES256K is not a FIPS approved algorithm.
 //!
 //! [aws-lc-rs]: https://docs.rs/aws-lc-rs
 
-use aws_lc_rs::signature::{UnparsedPublicKey, ED25519, ML_DSA_87};
+use aws_lc_rs::signature::{UnparsedPublicKey, ECDSA_P256K1_SHA256_FIXED, ED25519, ML_DSA_87};
 
 use crate::document::{
     VerificationMaterial, VerificationMethodMap, JWK_ALG_ML_DSA_87, JWK_KTY_AKP,
@@ -24,6 +25,9 @@ use crate::multikey::{self, KeyCodec};
 
 /// Byte length of an Ed25519 signature.
 pub const ED25519_SIGNATURE_LEN: usize = 64;
+
+/// Byte length of an ES256K signature, `r || s`.
+pub const SECP256K1_SIGNATURE_LEN: usize = 64;
 
 /// True when the linked AWS-LC module is operating in FIPS mode
 /// (feature `fips`).
@@ -42,6 +46,21 @@ pub fn verify_ed25519(
         return Err(Error::SignatureVerification);
     }
     UnparsedPublicKey::new(&ED25519, public_key)
+        .verify(message, signature)
+        .map_err(|_| Error::SignatureVerification)
+}
+
+/// Verify an ES256K signature over `message`, ECDSA over secp256k1 with
+/// SHA-256 in the fixed `r || s` form, with a 33 byte compressed public key.
+pub fn verify_secp256k1(
+    public_key: &[u8; 33],
+    message: &[u8],
+    signature: &[u8],
+) -> Result<(), Error> {
+    if signature.len() != SECP256K1_SIGNATURE_LEN {
+        return Err(Error::SignatureVerification);
+    }
+    UnparsedPublicKey::new(&ECDSA_P256K1_SHA256_FIXED, public_key)
         .verify(message, signature)
         .map_err(|_| Error::SignatureVerification)
 }
@@ -67,8 +86,7 @@ pub fn verify_ml_dsa_87(public_key: &[u8], message: &[u8], signature: &[u8]) -> 
 /// dispatching on its material type.
 ///
 /// Returns [`Error::UnsupportedKeyType`] for X25519, which is key agreement
-/// only, for secp256k1, which this crate does not provide, and for JWKs
-/// other than `AKP` with `ML-DSA-87`. Returns
+/// only, and for JWKs other than `AKP` with `ML-DSA-87`. Returns
 /// [`Error::SignatureVerification`] when the signature does not verify.
 pub fn verify_with_method(
     method: &VerificationMethodMap,
@@ -92,9 +110,16 @@ pub fn verify_with_method(
                 KeyCodec::X25519Pub => Err(Error::UnsupportedKeyType(
                     "X25519 is a key-agreement type and cannot verify signatures",
                 )),
-                KeyCodec::Secp256k1Pub => Err(Error::UnsupportedKeyType(
-                    "secp256k1 signature verification is not provided by this crate",
-                )),
+                KeyCodec::Secp256k1Pub => {
+                    let key: [u8; 33] =
+                        key.as_slice()
+                            .try_into()
+                            .map_err(|_| Error::InvalidKeyLength {
+                                expected: 33,
+                                actual: key.len(),
+                            })?;
+                    verify_secp256k1(&key, message, signature)
+                }
             }
         }
         VerificationMaterial::PublicKeyJwk(jwk) => {
@@ -138,7 +163,11 @@ pub fn verify_for_relationship(
 
 #[cfg(test)]
 mod tests {
-    use aws_lc_rs::signature::{Ed25519KeyPair, KeyPair, PqdsaKeyPair, ML_DSA_87_SIGNING};
+    use aws_lc_rs::rand::SystemRandom;
+    use aws_lc_rs::signature::{
+        EcdsaKeyPair, Ed25519KeyPair, KeyPair, PqdsaKeyPair, ECDSA_P256K1_SHA256_FIXED_SIGNING,
+        ML_DSA_87_SIGNING,
+    };
 
     use super::*;
     use crate::document::{DidDocument, VerificationRelationship};
@@ -237,6 +266,34 @@ mod tests {
     }
 
     #[test]
+    fn es256k_roundtrip_with_a_compressed_key() {
+        let key_pair = EcdsaKeyPair::generate(&ECDSA_P256K1_SHA256_FIXED_SIGNING).unwrap();
+        let uncompressed = key_pair.public_key().as_ref();
+        assert_eq!(uncompressed.len(), 65);
+        let mut compressed = vec![2 + (uncompressed[64] & 1)];
+        compressed.extend_from_slice(&uncompressed[1..33]);
+        let method = VerificationMethodMap::multikey(
+            "did:bio:devnet:test#evm".to_string(),
+            "did:bio:devnet:test".to_string(),
+            KeyCodec::Secp256k1Pub,
+            &compressed,
+        )
+        .unwrap();
+
+        let message = b"an assertion signed by an Ethereum style key";
+        let signature = key_pair.sign(&SystemRandom::new(), message).unwrap();
+        verify_with_method(&method, message, signature.as_ref()).unwrap();
+        assert_eq!(
+            verify_with_method(&method, b"tampered", signature.as_ref()),
+            Err(Error::SignatureVerification)
+        );
+        assert_eq!(
+            verify_with_method(&method, message, &signature.as_ref()[..63]),
+            Err(Error::SignatureVerification)
+        );
+    }
+
+    #[test]
     fn unsupported_key_types_are_rejected() {
         let x25519 = VerificationMethodMap::multikey(
             "did:bio:devnet:test#agree".to_string(),
@@ -247,18 +304,6 @@ mod tests {
         .unwrap();
         assert!(matches!(
             verify_with_method(&x25519, b"m", &[0u8; 64]),
-            Err(Error::UnsupportedKeyType(_))
-        ));
-
-        let secp = VerificationMethodMap::multikey(
-            "did:bio:devnet:test#evm".to_string(),
-            "did:bio:devnet:test".to_string(),
-            KeyCodec::Secp256k1Pub,
-            &[2u8; 33],
-        )
-        .unwrap();
-        assert!(matches!(
-            verify_with_method(&secp, b"m", &[0u8; 64]),
             Err(Error::UnsupportedKeyType(_))
         ));
     }
