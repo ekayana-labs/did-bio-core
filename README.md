@@ -64,7 +64,9 @@ Resolution against a live cluster plugs any account fetcher into the
 and applies steps 6-9, which cover the ownership and discriminator checks,
 deactivation and materialization. A fetcher must report a transport failure
 as an error and never as a missing account. Spec Section 7 describes the
-withholding attack this prevents.
+withholding attack this prevents. `Quorum` wraps several fetchers and
+accepts an account only when a majority return it, so the attack needs a
+majority of the providers.
 
 ## Features
 

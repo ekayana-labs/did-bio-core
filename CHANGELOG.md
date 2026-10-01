@@ -15,6 +15,7 @@ adheres to [Semantic Versioning](https://semver.org/).
 - `dereference` and `DidDocument::dereference` find what a DID URL names.
 - `verify_secp256k1` and `verify_with_method` verify ES256K signatures by
   secp256k1 methods.
+- `Quorum` accepts an account only when a majority of its readers return it.
 
 ### Changed
 

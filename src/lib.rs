@@ -22,6 +22,8 @@
 //!   [`resolve_with`], [`resolve_with_async`] and
 //!   [`resolve_with_async_local`] drive it through a pluggable
 //!   [`RegistryReader`], and [`dereference`] finds what a DID URL names.
+//! - [`Quorum`] reads through several readers and accepts an account only
+//!   when a majority agree, against an RPC node that withholds one.
 //! - [`find_did_account_address`], [`find_key_buffer_address`] and
 //!   [`find_owned_subject`] derive PDAs without a Solana SDK dependency,
 //!   under the `pda` feature.
@@ -78,6 +80,7 @@ pub mod error;
 pub mod multikey;
 #[cfg(feature = "pda")]
 pub mod pda;
+pub mod quorum;
 pub mod resolve;
 #[cfg(feature = "verify")]
 pub mod verify;
@@ -98,6 +101,7 @@ pub use pda::{
     find_did_account_address, find_key_buffer_address, find_owned_subject, find_program_address,
     try_find_program_address,
 };
+pub use quorum::{Quorum, QuorumError};
 pub use resolve::{
     deactivated_document, dereference, generative_document, materialize_document,
     resolve_from_account, resolve_str, AsyncRegistryReader, LocalAsyncRegistryReader, RawAccount,
