@@ -19,8 +19,9 @@
 //!   chunks.
 //! - [`resolve_from_account`] runs steps 6-9 of the resolution algorithm
 //!   (spec Section 6.2) as a pure function, with the generative fallback.
-//!   [`resolve_with`] and [`resolve_with_async`] drive it through a
-//!   pluggable [`RegistryReader`].
+//!   [`resolve_with`], [`resolve_with_async`] and
+//!   [`resolve_with_async_local`] drive it through a pluggable
+//!   [`RegistryReader`].
 //! - [`find_did_account_address`], [`find_key_buffer_address`] and
 //!   [`find_owned_subject`] derive PDAs without a Solana SDK dependency,
 //!   under the `pda` feature.
@@ -98,7 +99,7 @@ pub use pda::{
 };
 pub use resolve::{
     deactivated_document, generative_document, materialize_document, resolve_from_account,
-    resolve_str, AsyncRegistryReader, RawAccount, RegistryReader,
+    resolve_str, AsyncRegistryReader, LocalAsyncRegistryReader, RawAccount, RegistryReader,
 };
 #[cfg(feature = "pda")]
-pub use resolve::{resolve_with, resolve_with_async};
+pub use resolve::{resolve_with, resolve_with_async, resolve_with_async_local};

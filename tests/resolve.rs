@@ -247,6 +247,51 @@ fn async_driver_fetches_the_did_pda() {
     );
 }
 
+/// A reader whose state sits in an `Rc`, so its futures are not `Send`.
+#[cfg(feature = "pda")]
+struct SharedReader {
+    seen: std::rc::Rc<std::cell::RefCell<Vec<[u8; 32]>>>,
+    account: Option<RawAccount>,
+}
+
+#[cfg(feature = "pda")]
+impl did_bio_core::LocalAsyncRegistryReader for SharedReader {
+    type Error = String;
+
+    async fn fetch_account(&self, address: &[u8; 32]) -> Result<Option<RawAccount>, String> {
+        self.seen.borrow_mut().push(*address);
+        Ok(self.account.clone())
+    }
+}
+
+#[cfg(feature = "pda")]
+#[test]
+fn local_driver_takes_futures_that_are_not_send() {
+    let did = example_did();
+    let (address, _) = did_bio_core::find_did_account_address(&did.subject);
+    let reader = SharedReader {
+        seen: Default::default(),
+        account: Some(registry_account(rich_account_image(&did.subject))),
+    };
+    let resolution = block_on(did_bio_core::resolve_with_async_local(&reader, &did)).unwrap();
+    assert_eq!(
+        resolution.document_metadata.version_id.as_deref(),
+        Some("7")
+    );
+    assert_eq!(*reader.seen.borrow(), vec![address]);
+
+    // Every Send reader is a local one too.
+    let send = MapReader {
+        address,
+        account: None,
+    };
+    let resolution = block_on(did_bio_core::resolve_with_async_local(&send, &did)).unwrap();
+    assert_eq!(
+        resolution.document_metadata.version_id.as_deref(),
+        Some("0")
+    );
+}
+
 /// Minimal executor for a future that never actually suspends.
 #[cfg(feature = "pda")]
 fn block_on<F: core::future::Future>(future: F) -> F::Output {

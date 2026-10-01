@@ -59,7 +59,8 @@ assert!(did.is_key_subject());
 ```
 
 Resolution against a live cluster plugs any account fetcher into the
-`RegistryReader` or `AsyncRegistryReader` trait. The crate derives the PDA
+`RegistryReader` or `AsyncRegistryReader` trait, or into
+`LocalAsyncRegistryReader` when its futures are not `Send`. The crate derives the PDA
 and applies steps 6-9, which cover the ownership and discriminator checks,
 deactivation and materialization. A fetcher must report a transport failure
 as an error and never as a missing account. Spec Section 7 describes the

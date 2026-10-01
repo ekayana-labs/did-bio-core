@@ -218,6 +218,32 @@ pub trait AsyncRegistryReader {
     ) -> impl core::future::Future<Output = Result<Option<RawAccount>, Self::Error>> + Send;
 }
 
+/// An asynchronous registry account fetcher whose futures need not be
+/// `Send`, for single threaded runtimes such as a browser. Same contract as
+/// [`RegistryReader`]. Every [`AsyncRegistryReader`] is one.
+pub trait LocalAsyncRegistryReader {
+    /// Transport error type.
+    type Error;
+
+    /// Fetch the account at `address` (a PDA), or `None` if it does not
+    /// exist.
+    fn fetch_account(
+        &self,
+        address: &[u8; 32],
+    ) -> impl core::future::Future<Output = Result<Option<RawAccount>, Self::Error>>;
+}
+
+impl<R: AsyncRegistryReader> LocalAsyncRegistryReader for R {
+    type Error = R::Error;
+
+    fn fetch_account(
+        &self,
+        address: &[u8; 32],
+    ) -> impl core::future::Future<Output = Result<Option<RawAccount>, Self::Error>> {
+        AsyncRegistryReader::fetch_account(self, address)
+    }
+}
+
 /// Full resolution via a synchronous fetcher. It derives the PDA, fetches
 /// the account and runs [`resolve_from_account`]. Transport errors
 /// propagate as `Err`.
@@ -239,6 +265,18 @@ pub async fn resolve_with_async<R: AsyncRegistryReader>(
     did: &BioDid,
 ) -> Result<DidResolution, R::Error> {
     let (address, _bump) = crate::pda::find_did_account_address(&did.subject);
-    let account = reader.fetch_account(&address).await?;
+    let account = AsyncRegistryReader::fetch_account(reader, &address).await?;
+    Ok(resolve_from_account(did, account.as_ref()))
+}
+
+/// Full resolution via a fetcher whose futures need not be `Send`.
+/// Transport errors propagate as `Err`.
+#[cfg(feature = "pda")]
+pub async fn resolve_with_async_local<R: LocalAsyncRegistryReader>(
+    reader: &R,
+    did: &BioDid,
+) -> Result<DidResolution, R::Error> {
+    let (address, _bump) = crate::pda::find_did_account_address(&did.subject);
+    let account = LocalAsyncRegistryReader::fetch_account(reader, &address).await?;
     Ok(resolve_from_account(did, account.as_ref()))
 }

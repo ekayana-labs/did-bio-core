@@ -10,6 +10,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 - `try_find_program_address`, with the `MAX_SEEDS` and `MAX_SEED_LEN`
   limits the runtime applies.
+- `LocalAsyncRegistryReader` and `resolve_with_async_local` take fetchers
+  whose futures are not `Send`.
 
 ### Changed
 
