@@ -26,7 +26,7 @@ directly, with golden tests against the spec's own vectors.
 | `multikey` | Section 5.2 | Multikey encode/decode (Ed25519 `z6Mk...`, X25519 `z6LS...`, secp256k1 `zQ3s...`) |
 | `document` | Section 5 | `DidDocument`, verification methods, services, resolution metadata |
 | `account` | Section 5-6 | Registry constants and a dependency free deserializer for the on chain `DidAccount` |
-| `resolve` | Section 6.2 | The resolution algorithm as a pure function, generative fallback included, plus sync/async `RegistryReader` drivers |
+| `resolve` | Section 6.2 | The resolution algorithm as a pure function, generative fallback included, sync and async `RegistryReader` drivers, and DID URL dereferencing |
 | `pda` | Section 4.2, 6.2(4) | `find_program_address`, DID account, key buffer and owned subject derivation without a Solana SDK dependency, behind the default `pda` feature |
 | `verify` | Section 5.2 | Ed25519 and ML-DSA-87 (FIPS 204) signature verification via aws-lc-rs, behind the `verify` and `fips` features |
 

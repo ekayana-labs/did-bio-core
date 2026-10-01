@@ -272,6 +272,34 @@ impl DidDocument {
             .iter()
             .find(|s| s.id.split_once('#').map(|(_, f)| f) == Some(fragment))
     }
+
+    /// What a DID URL with this `fragment` names in the document, or the
+    /// document itself without a fragment. Fragments are unique across
+    /// methods and services (spec Section 5.4), so at most one matches.
+    pub fn dereference(&self, fragment: Option<&str>) -> Option<Dereferenced<'_>> {
+        match fragment {
+            None => Some(Dereferenced::Document(self)),
+            Some(fragment) => self
+                .verification_method_by_fragment(fragment)
+                .map(Dereferenced::VerificationMethod)
+                .or_else(|| {
+                    self.service_by_fragment(fragment)
+                        .map(Dereferenced::Service)
+                }),
+        }
+    }
+}
+
+/// What a DID URL names. It serializes as the resource itself.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[serde(untagged)]
+pub enum Dereferenced<'a> {
+    /// The whole document, for a DID URL without a fragment.
+    Document(&'a DidDocument),
+    /// A verification method.
+    VerificationMethod(&'a VerificationMethodMap),
+    /// A service.
+    Service(&'a ServiceMap),
 }
 
 /// `didDocumentMetadata` (spec Section 6.2).

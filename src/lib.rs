@@ -21,7 +21,7 @@
 //!   (spec Section 6.2) as a pure function, with the generative fallback.
 //!   [`resolve_with`], [`resolve_with_async`] and
 //!   [`resolve_with_async_local`] drive it through a pluggable
-//!   [`RegistryReader`].
+//!   [`RegistryReader`], and [`dereference`] finds what a DID URL names.
 //! - [`find_did_account_address`], [`find_key_buffer_address`] and
 //!   [`find_owned_subject`] derive PDAs without a Solana SDK dependency,
 //!   under the `pda` feature.
@@ -88,8 +88,9 @@ pub use account::{
 pub use did::is_on_curve;
 pub use did::{BioDid, DidUrl, Network};
 pub use document::{
-    AkpPublicJwk, DidDocument, DidDocumentMetadata, DidResolution, DidResolutionMetadata,
-    ServiceMap, VerificationMaterial, VerificationMethodMap, VerificationRelationship,
+    AkpPublicJwk, Dereferenced, DidDocument, DidDocumentMetadata, DidResolution,
+    DidResolutionMetadata, ServiceMap, VerificationMaterial, VerificationMethodMap,
+    VerificationRelationship,
 };
 pub use error::{resolution_error, Error};
 #[cfg(feature = "pda")]
@@ -98,8 +99,9 @@ pub use pda::{
     try_find_program_address,
 };
 pub use resolve::{
-    deactivated_document, generative_document, materialize_document, resolve_from_account,
-    resolve_str, AsyncRegistryReader, LocalAsyncRegistryReader, RawAccount, RegistryReader,
+    deactivated_document, dereference, generative_document, materialize_document,
+    resolve_from_account, resolve_str, AsyncRegistryReader, LocalAsyncRegistryReader, RawAccount,
+    RegistryReader,
 };
 #[cfg(feature = "pda")]
 pub use resolve::{resolve_with, resolve_with_async, resolve_with_async_local};

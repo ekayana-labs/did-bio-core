@@ -20,7 +20,7 @@
 use crate::account::{vm_flags, DidAccountState, StoredVerificationMethod, PROGRAM_ID};
 use crate::did::BioDid;
 use crate::document::{
-    default_context, DidDocument, DidDocumentMetadata, DidResolution, ServiceMap,
+    default_context, Dereferenced, DidDocument, DidDocumentMetadata, DidResolution, ServiceMap,
     VerificationMethodMap,
 };
 use crate::error::{resolution_error, Error};
@@ -178,6 +178,26 @@ pub fn resolve_from_account(did: &BioDid, account: Option<&RawAccount>) -> DidRe
         ),
         Err(_) => DidResolution::error(resolution_error::INTERNAL_ERROR),
     }
+}
+
+/// Dereference the `fragment` of a DID URL against the resolution of its
+/// DID. Returns what the URL names, or a DID Resolution error code, which is
+/// the resolution's own error when it failed and `notFound` when the
+/// fragment names nothing in the document.
+pub fn dereference<'a>(
+    resolution: &'a DidResolution,
+    fragment: Option<&str>,
+) -> Result<Dereferenced<'a>, &'a str> {
+    let document = resolution.document.as_ref().ok_or(
+        resolution
+            .resolution_metadata
+            .error
+            .as_deref()
+            .unwrap_or(resolution_error::INTERNAL_ERROR),
+    )?;
+    document
+        .dereference(fragment)
+        .ok_or(resolution_error::NOT_FOUND)
 }
 
 /// Resolve a DID string against an already fetched account. This is step

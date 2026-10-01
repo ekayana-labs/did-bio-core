@@ -366,3 +366,56 @@ fn owned_subject_materializes_from_its_account() {
     }
     assert_eq!(document.capability_invocation, vec![owned.url("default")]);
 }
+
+#[test]
+fn dereferences_what_a_fragment_names() {
+    use did_bio_core::{dereference, Dereferenced};
+
+    let did = example_did();
+    let resolution = resolve_from_account(
+        &did,
+        Some(&registry_account(rich_account_image(&did.subject))),
+    );
+    let document = resolution.document.as_ref().unwrap();
+    assert_eq!(
+        dereference(&resolution, None),
+        Ok(Dereferenced::Document(document))
+    );
+    match dereference(&resolution, Some("pq")) {
+        Ok(Dereferenced::VerificationMethod(vm)) => assert_eq!(vm.id, did.url("pq")),
+        other => panic!("expected the pq method, got {other:?}"),
+    }
+    match dereference(&resolution, Some("metadata")) {
+        Ok(Dereferenced::Service(service)) => {
+            assert_eq!(
+                serde_json::to_value(Dereferenced::Service(service)).unwrap(),
+                serde_json::to_value(service).unwrap()
+            );
+        }
+        other => panic!("expected the metadata service, got {other:?}"),
+    }
+    assert_eq!(dereference(&resolution, Some("missing")), Err("notFound"));
+
+    // A failed resolution passes its own error on.
+    let failed = resolve_str("did:bio:nope", None);
+    assert_eq!(dereference(&failed, None), Err("invalidDid"));
+
+    // A deactivated DID dereferences to its minimal document and nothing else.
+    let tombstone = AccountImage::new()
+        .u64(9)
+        .u8(254)
+        .raw(&did.subject)
+        .u8(1)
+        .i64(0)
+        .u32(0)
+        .u32(0)
+        .u32(0)
+        .u32(0)
+        .bytes;
+    let resolution = resolve_from_account(&did, Some(&registry_account(tombstone)));
+    assert!(matches!(
+        dereference(&resolution, None),
+        Ok(Dereferenced::Document(_))
+    ));
+    assert_eq!(dereference(&resolution, Some("default")), Err("notFound"));
+}

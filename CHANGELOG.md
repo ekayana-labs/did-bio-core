@@ -12,6 +12,7 @@ adheres to [Semantic Versioning](https://semver.org/).
   limits the runtime applies.
 - `LocalAsyncRegistryReader` and `resolve_with_async_local` take fetchers
   whose futures are not `Send`.
+- `dereference` and `DidDocument::dereference` find what a DID URL names.
 
 ### Changed
 
