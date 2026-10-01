@@ -27,6 +27,7 @@ directly, with golden tests against the spec's own vectors.
 | `document` | Section 5 | `DidDocument`, verification methods, services, resolution metadata |
 | `account` | Section 5-6 | Registry constants and a dependency free deserializer for the on chain `DidAccount` |
 | `resolve` | Section 6.2 | The resolution algorithm as a pure function, generative fallback included, sync and async `RegistryReader` drivers, and DID URL dereferencing |
+| `quorum` | Section 7 | `Quorum`, a reader that accepts an account only when a majority of its readers return it |
 | `pda` | Section 4.2, 6.2(4) | `find_program_address`, DID account, key buffer and owned subject derivation without a Solana SDK dependency, behind the default `pda` feature |
 | `verify` | Section 5.2 | Ed25519, ES256K (secp256k1) and ML-DSA-87 (FIPS 204) signature verification via aws-lc-rs, behind the `verify` and `fips` features |
 
