@@ -251,16 +251,9 @@ fn async_driver_fetches_the_did_pda() {
 #[cfg(feature = "pda")]
 fn block_on<F: core::future::Future>(future: F) -> F::Output {
     use core::pin::pin;
-    use core::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
+    use core::task::{Context, Poll, Waker};
 
-    fn noop_raw_waker() -> RawWaker {
-        const VTABLE: RawWakerVTable =
-            RawWakerVTable::new(|_| noop_raw_waker(), |_| {}, |_| {}, |_| {});
-        RawWaker::new(core::ptr::null(), &VTABLE)
-    }
-
-    let waker = unsafe { Waker::from_raw(noop_raw_waker()) };
-    let mut context = Context::from_waker(&waker);
+    let mut context = Context::from_waker(Waker::noop());
     let mut future = pin!(future);
     match future.as_mut().poll(&mut context) {
         Poll::Ready(output) => output,
