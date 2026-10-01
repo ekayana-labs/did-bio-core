@@ -74,7 +74,7 @@ withholding attack this prevents.
 | `fips` | no | `verify`, linked against the FIPS validated AWS-LC module, whose build needs CMake and Go |
 
 With default features the dependency tree is pure Rust. It holds `serde`,
-`serde_json`, `bs58`, `base64`, `sha2` and `curve25519-dalek`.
+`bs58`, `base64`, `sha2` and `curve25519-dalek`.
 
 ## Consumers
 

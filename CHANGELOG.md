@@ -10,6 +10,7 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 - Decoding refuses account states the registry never writes, such as
   trailing bytes, invalid fragments or unknown flag bits.
+- `serde_json` is a dev-dependency only.
 
 ### Fixed
 
