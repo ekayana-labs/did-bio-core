@@ -28,6 +28,12 @@ pub enum Error {
     UnsupportedKeyType(&'static str),
     /// A signature did not verify against the given key and message.
     SignatureVerification,
+    /// The DID document holds no verification method with this id or
+    /// fragment.
+    VerificationMethodNotFound,
+    /// The verification method is not listed under the verification
+    /// relationship the check requires.
+    RelationshipNotGranted,
 }
 
 impl fmt::Display for Error {
@@ -49,6 +55,13 @@ impl fmt::Display for Error {
                 write!(f, "unsupported key type for this operation: {reason}")
             }
             Error::SignatureVerification => write!(f, "signature verification failed"),
+            Error::VerificationMethodNotFound => {
+                write!(f, "verification method not found in the DID document")
+            }
+            Error::RelationshipNotGranted => write!(
+                f,
+                "verification method does not hold the required verification relationship"
+            ),
         }
     }
 }

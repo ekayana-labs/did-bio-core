@@ -125,17 +125,13 @@ pub fn verify_for_relationship(
     let method = document
         .verification_method_by_id(vm_id)
         .or_else(|| document.verification_method_by_fragment(vm_id))
-        .ok_or(Error::UnsupportedKeyType(
-            "verification method not found in document",
-        ))?;
+        .ok_or(Error::VerificationMethodNotFound)?;
     if !document
         .relationship(relationship)
         .iter()
         .any(|reference| reference == &method.id)
     {
-        return Err(Error::UnsupportedKeyType(
-            "verification method is not authorized for this relationship",
-        ));
+        return Err(Error::RelationshipNotGranted);
     }
     verify_with_method(method, message, signature)
 }
@@ -214,6 +210,30 @@ mod tests {
             signature.as_ref(),
         )
         .is_err());
+        assert_eq!(
+            verify_for_relationship(
+                &document,
+                VerificationRelationship::Authentication,
+                "missing",
+                message,
+                signature.as_ref(),
+            ),
+            Err(Error::VerificationMethodNotFound)
+        );
+
+        // A document whose only method holds no authentication.
+        let mut narrowed = document.clone();
+        narrowed.authentication.clear();
+        assert_eq!(
+            verify_for_relationship(
+                &narrowed,
+                VerificationRelationship::Authentication,
+                "default",
+                message,
+                signature.as_ref(),
+            ),
+            Err(Error::RelationshipNotGranted)
+        );
     }
 
     #[test]
