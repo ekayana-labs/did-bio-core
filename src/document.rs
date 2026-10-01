@@ -99,7 +99,12 @@ pub enum VerificationMaterial {
 }
 
 /// A verification method map (spec Section 5.2).
+///
+/// Deserializing refuses a method with no verification material property
+/// or with more than one, so two readers of the same document never pick
+/// different keys.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "VerificationMethodFields")]
 pub struct VerificationMethodMap {
     /// DID URL of this method, `<did>#<fragment>`.
     pub id: String,
@@ -111,6 +116,41 @@ pub struct VerificationMethodMap {
     /// The verification material property.
     #[serde(flatten)]
     pub material: VerificationMaterial,
+}
+
+/// A verification method map as it arrives, before the check that it has
+/// exactly one material property.
+#[derive(Deserialize)]
+struct VerificationMethodFields {
+    id: String,
+    #[serde(rename = "type")]
+    method_type: String,
+    controller: String,
+    #[serde(rename = "publicKeyMultibase")]
+    public_key_multibase: Option<String>,
+    #[serde(rename = "publicKeyJwk")]
+    public_key_jwk: Option<AkpPublicJwk>,
+}
+
+impl TryFrom<VerificationMethodFields> for VerificationMethodMap {
+    type Error = &'static str;
+
+    fn try_from(fields: VerificationMethodFields) -> Result<Self, Self::Error> {
+        let material = match (fields.public_key_multibase, fields.public_key_jwk) {
+            (Some(multibase), None) => VerificationMaterial::PublicKeyMultibase(multibase),
+            (None, Some(jwk)) => VerificationMaterial::PublicKeyJwk(jwk),
+            (None, None) => return Err("verification method has no verification material"),
+            (Some(_), Some(_)) => {
+                return Err("verification method has more than one verification material")
+            }
+        };
+        Ok(VerificationMethodMap {
+            id: fields.id,
+            method_type: fields.method_type,
+            controller: fields.controller,
+            material,
+        })
+    }
 }
 
 impl VerificationMethodMap {

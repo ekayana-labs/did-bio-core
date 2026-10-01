@@ -34,6 +34,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 - Decoding caps each vector at the registry's limit before allocating.
 - Multikey decoding refuses a multicodec varint that is not minimal.
+- A verification method with two material properties no longer
+  deserializes.
 
 ## [0.1.2] - 2026-09-16
 
