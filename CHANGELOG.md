@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Decoding refuses account states the registry never writes, such as
+  trailing bytes, invalid fragments or unknown flag bits.
+
 ### Fixed
 
 - Decoding caps each vector at the registry's limit before allocating.

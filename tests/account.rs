@@ -246,3 +246,150 @@ fn key_buffer_constants_match_the_program() {
     assert_eq!(KEY_BUFFER_SEED, b"bio-did-key");
     assert_eq!(KEY_BUFFER_HEADER_LEN, 120);
 }
+
+/// One change to the rich image, the description of the field it breaks,
+/// and the error the decoder must give.
+fn refused(image: Vec<u8>, reason: &'static str) {
+    assert_eq!(
+        DidAccountState::from_account_data(&image),
+        Err(Error::InvalidAccountData(reason)),
+    );
+}
+
+#[test]
+fn rejects_states_the_registry_never_writes() {
+    let did = example_did();
+    let header = || {
+        AccountImage::new()
+            .u64(3)
+            .u8(255)
+            .raw(&did.subject)
+            .u8(0)
+            .i64(0)
+    };
+    let method = |image: AccountImage, fragment: &str, tag: u8, flags: u16, key: &[u8]| {
+        image.string(fragment).u8(tag).u16(flags).byte_vec(key)
+    };
+
+    let mut trailing = rich_account_image(&did.subject);
+    trailing.push(0);
+    refused(trailing, "trailing bytes after the account state");
+
+    refused(
+        method(header().u32(0).u32(0).u32(1), "has space", 0, 1, &[1; 32])
+            .u32(0)
+            .bytes,
+        "fragment is not valid",
+    );
+    refused(
+        method(header().u32(0).u32(0).u32(1), "k", 0, 1 << 12, &[1; 32])
+            .u32(0)
+            .bytes,
+        "unknown verification method flag bits",
+    );
+    refused(
+        method(header().u32(0).u32(0).u32(1), "k", 0, 1, &[1; 3])
+            .u32(0)
+            .bytes,
+        "key length does not match its type",
+    );
+    refused(
+        header()
+            .u32(0)
+            .u32(0)
+            .u32(0)
+            .u32(1)
+            .string("s")
+            .string("T")
+            .string("not a uri")
+            .bytes,
+        "service endpoint is not valid",
+    );
+    refused(
+        header()
+            .u32(0)
+            .u32(0)
+            .u32(0)
+            .u32(1)
+            .string("s")
+            .string("")
+            .string("x")
+            .bytes,
+        "service type is not valid",
+    );
+    for controller in [
+        "web:lab",
+        "did:bio:5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+    ] {
+        refused(
+            header()
+                .u32(0)
+                .u32(1)
+                .string(controller)
+                .u32(0)
+                .u32(0)
+                .bytes,
+            "external controller is not a DID of another method",
+        );
+    }
+    refused(
+        method(header().u32(0).u32(0).u32(1), "dup", 0, 1, &[1; 32])
+            .u32(1)
+            .string("dup")
+            .string("T")
+            .string("x")
+            .bytes,
+        "fragment used twice",
+    );
+    refused(
+        AccountImage::new()
+            .u64(4)
+            .u8(255)
+            .raw(&did.subject)
+            .u8(1)
+            .i64(0)
+            .u32(0)
+            .u32(0)
+            .u32(0)
+            .u32(1)
+            .string("s")
+            .string("T")
+            .string("x")
+            .bytes,
+        "deactivated account holds entries",
+    );
+}
+
+/// Every account the deployed devnet program had written when this test was
+/// added, fetched with `getProgramAccounts`. Strict decoding must accept all
+/// of them and resolve each to its stored version.
+#[test]
+fn decodes_every_account_the_devnet_program_wrote() {
+    use base64::Engine as _;
+    let accounts: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("fixtures/devnet-accounts.json")).unwrap();
+    assert_eq!(accounts.len(), 21);
+    for account in accounts {
+        let data = base64::engine::general_purpose::STANDARD
+            .decode(account["data"].as_str().unwrap())
+            .unwrap();
+        let state = DidAccountState::from_account_data(&data)
+            .unwrap_or_else(|e| panic!("{}: {e}", account["address"]));
+        let did = did_bio_core::BioDid::new(did_bio_core::Network::Devnet, state.subject);
+        let resolution = did_bio_core::resolve_from_account(
+            &did,
+            Some(&did_bio_core::RawAccount {
+                owner: PROGRAM_ID,
+                data,
+            }),
+        );
+        assert_eq!(
+            resolution.document_metadata.version_id,
+            Some(state.version.to_string())
+        );
+        assert_eq!(
+            resolution.document_metadata.deactivated,
+            Some(state.deactivated)
+        );
+    }
+}

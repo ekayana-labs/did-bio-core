@@ -249,7 +249,11 @@ impl DidAccountState {
     /// Decode registry account data by verifying the 8 byte discriminator
     /// and then reading the Borsh encoded state (spec Section 6.2 step 7).
     ///
-    /// Trailing bytes after the state are ignored.
+    /// The decoding is strict. It refuses anything the registry never
+    /// writes, such as bytes past the state, an invalid fragment, unknown
+    /// flag bits, a key whose length does not match its type, a service
+    /// value or external controller outside its form, a fragment used twice,
+    /// or entries left in a deactivated tombstone.
     pub fn from_account_data(data: &[u8]) -> Result<Self, Error> {
         if data.len() < ACCOUNT_DISCRIMINATOR.len() {
             return Err(Error::InvalidAccountData("shorter than the discriminator"));
@@ -273,7 +277,7 @@ impl DidAccountState {
             other_controllers: cursor.read_vec(
                 MAX_OTHER_CONTROLLERS,
                 "more external controllers than the registry allows",
-                Cursor::read_string,
+                Cursor::read_external_controller,
             )?,
             verification_methods: cursor.read_vec(
                 MAX_VERIFICATION_METHODS,
@@ -286,7 +290,38 @@ impl DidAccountState {
                 Cursor::read_service,
             )?,
         };
+        if cursor.remaining() != 0 {
+            return Err(Error::InvalidAccountData(
+                "trailing bytes after the account state",
+            ));
+        }
+        state.check()?;
         Ok(state)
+    }
+
+    /// The rules of a whole document that no single field can check.
+    fn check(&self) -> Result<(), Error> {
+        let fragments = self
+            .verification_methods
+            .iter()
+            .map(|vm| &vm.fragment)
+            .chain(self.services.iter().map(|s| &s.fragment));
+        for (i, fragment) in fragments.clone().enumerate() {
+            if fragments.clone().take(i).any(|seen| seen == fragment) {
+                return Err(Error::InvalidAccountData("fragment used twice"));
+            }
+        }
+        if self.deactivated
+            && !(self.native_controllers.is_empty()
+                && self.other_controllers.is_empty()
+                && self.verification_methods.is_empty()
+                && self.services.is_empty())
+        {
+            return Err(Error::InvalidAccountData(
+                "deactivated account holds entries",
+            ));
+        }
+        Ok(())
     }
 
     /// True when `key` may authorize updates. It must match an Ed25519
@@ -383,8 +418,16 @@ impl KeyBufferState {
         }
         let fragment = String::from_utf8(cursor.take(fragment_len)?.to_vec())
             .map_err(|_| Error::InvalidAccountData("fragment is not valid UTF-8"))?;
+        if !crate::did::is_valid_fragment(&fragment) {
+            return Err(Error::InvalidAccountData("fragment is not valid"));
+        }
+        if flags & !vm_flags::VALID_MASK != 0 {
+            return Err(Error::InvalidAccountData(
+                "unknown verification method flag bits",
+            ));
+        }
         let key = &data[KEY_BUFFER_HEADER_LEN..];
-        if key.len() != key_len || written > key_len {
+        if key.len() != key_len || written > key_len || key_len != method_type.expected_key_len() {
             return Err(Error::InvalidAccountData(
                 "key buffer length does not match its header",
             ));
@@ -509,22 +552,67 @@ impl<'a> Cursor<'a> {
         Ok(out)
     }
 
+    fn read_fragment(&mut self) -> Result<String, Error> {
+        let fragment = self.read_string()?;
+        if !crate::did::is_valid_fragment(&fragment) {
+            return Err(Error::InvalidAccountData("fragment is not valid"));
+        }
+        Ok(fragment)
+    }
+
+    /// A string of printable ASCII without whitespace, of at most `max`
+    /// bytes, the form of service values and external controllers.
+    fn read_printable(&mut self, max: usize, what: &'static str) -> Result<String, Error> {
+        let value = self.read_string()?;
+        if value.is_empty() || value.len() > max || !value.bytes().all(|b| b.is_ascii_graphic()) {
+            return Err(Error::InvalidAccountData(what));
+        }
+        Ok(value)
+    }
+
+    fn read_external_controller(&mut self) -> Result<String, Error> {
+        let value = self.read_printable(
+            MAX_CONTROLLER_LEN,
+            "external controller is not a DID of another method",
+        )?;
+        if !value.starts_with("did:") || value.starts_with("did:bio:") {
+            return Err(Error::InvalidAccountData(
+                "external controller is not a DID of another method",
+            ));
+        }
+        Ok(value)
+    }
+
     fn read_verification_method(&mut self) -> Result<StoredVerificationMethod, Error> {
+        let fragment = self.read_fragment()?;
+        let method_type = KeyType::from_tag(self.read_u8()?).ok_or(Error::InvalidAccountData(
+            "unknown verification method type tag",
+        ))?;
+        let flags = self.read_u16()?;
+        if flags & !vm_flags::VALID_MASK != 0 {
+            return Err(Error::InvalidAccountData(
+                "unknown verification method flag bits",
+            ));
+        }
+        let key_data = self.read_byte_vec()?;
+        if key_data.len() != method_type.expected_key_len() {
+            return Err(Error::InvalidAccountData(
+                "key length does not match its type",
+            ));
+        }
         Ok(StoredVerificationMethod {
-            fragment: self.read_string()?,
-            method_type: KeyType::from_tag(self.read_u8()?).ok_or(Error::InvalidAccountData(
-                "unknown verification method type tag",
-            ))?,
-            flags: self.read_u16()?,
-            key_data: self.read_byte_vec()?,
+            fragment,
+            method_type,
+            flags,
+            key_data,
         })
     }
 
     fn read_service(&mut self) -> Result<StoredService, Error> {
         Ok(StoredService {
-            fragment: self.read_string()?,
-            service_type: self.read_string()?,
-            endpoint: self.read_string()?,
+            fragment: self.read_fragment()?,
+            service_type: self.read_printable(MAX_SERVICE_TYPE_LEN, "service type is not valid")?,
+            endpoint: self.read_printable(MAX_ENDPOINT_LEN, "service endpoint is not valid")?,
         })
     }
 }
