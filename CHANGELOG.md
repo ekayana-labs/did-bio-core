@@ -6,6 +6,10 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Decoding caps each vector at the registry's limit before allocating.
+
 ## [0.1.2] - 2026-09-16
 
 ### Added

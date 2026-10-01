@@ -73,6 +73,32 @@ fn rejects_malformed_account_data() {
         Err(Error::InvalidAccountData("length prefix exceeds data"))
     ));
 
+    // a count the bytes could hold but the registry never writes
+    let header = || {
+        AccountImage::new()
+            .u64(1)
+            .u8(255)
+            .raw(&did.subject)
+            .u8(0)
+            .i64(0)
+    };
+    let mut over = header().u32(0).u32(0).u32(0).u32(17).bytes;
+    over.resize(over.len() + 17 * 12, 0);
+    assert!(matches!(
+        DidAccountState::from_account_data(&over),
+        Err(Error::InvalidAccountData(
+            "more services than the registry allows"
+        ))
+    ));
+    let mut over = header().u32(9).bytes;
+    over.resize(over.len() + 9 * 32 + 12, 0);
+    assert!(matches!(
+        DidAccountState::from_account_data(&over),
+        Err(Error::InvalidAccountData(
+            "more native controllers than the registry allows"
+        ))
+    ));
+
     // invalid bool byte
     let mut bad_bool = good.clone();
     bad_bool[8 + 8 + 1 + 32] = 2;

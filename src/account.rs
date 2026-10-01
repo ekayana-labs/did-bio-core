@@ -265,10 +265,26 @@ impl DidAccountState {
             subject: cursor.read_array32()?,
             deactivated: cursor.read_bool()?,
             updated_at: cursor.read_i64()?,
-            native_controllers: cursor.read_vec(Cursor::read_array32)?,
-            other_controllers: cursor.read_vec(Cursor::read_string)?,
-            verification_methods: cursor.read_vec(Cursor::read_verification_method)?,
-            services: cursor.read_vec(Cursor::read_service)?,
+            native_controllers: cursor.read_vec(
+                MAX_NATIVE_CONTROLLERS,
+                "more native controllers than the registry allows",
+                Cursor::read_array32,
+            )?,
+            other_controllers: cursor.read_vec(
+                MAX_OTHER_CONTROLLERS,
+                "more external controllers than the registry allows",
+                Cursor::read_string,
+            )?,
+            verification_methods: cursor.read_vec(
+                MAX_VERIFICATION_METHODS,
+                "more verification methods than the registry allows",
+                Cursor::read_verification_method,
+            )?,
+            services: cursor.read_vec(
+                MAX_SERVICES,
+                "more services than the registry allows",
+                Cursor::read_service,
+            )?,
         };
         Ok(state)
     }
@@ -473,13 +489,19 @@ impl<'a> Cursor<'a> {
             .map_err(|_| Error::InvalidAccountData("string is not valid UTF-8"))
     }
 
+    /// A vector of at most `max` elements, the registry's limit for it. The
+    /// count is checked before anything is allocated, so a hostile prefix
+    /// cannot make the decoder reserve more than the limit.
     fn read_vec<T>(
         &mut self,
+        max: usize,
+        too_many: &'static str,
         mut read_element: impl FnMut(&mut Self) -> Result<T, Error>,
     ) -> Result<Vec<T>, Error> {
-        // Minimum element size 1 keeps the bound conservative for
-        // variable size elements.
         let len = self.read_len(1)?;
+        if len > max {
+            return Err(Error::InvalidAccountData(too_many));
+        }
         let mut out = Vec::with_capacity(len);
         for _ in 0..len {
             out.push(read_element(self)?);
