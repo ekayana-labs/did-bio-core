@@ -88,6 +88,7 @@ impl AkpPublicJwk {
 /// The single verification material property of a verification method.
 /// Each method has exactly one (spec Section 5.2).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum VerificationMaterial {
     /// `publicKeyMultibase`, Multikey encoded key material.
     #[serde(rename = "publicKeyMultibase")]

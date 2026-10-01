@@ -8,6 +8,7 @@ use crate::error::Error;
 
 /// Multicodec key codecs used by `did:bio` verification methods.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum KeyCodec {
     /// `ed25519-pub`, multicodec `0xed`, a 32 byte key encoded as `z6Mk...`.
     Ed25519Pub,

@@ -35,6 +35,7 @@ fn is_base58_char(b: u8) -> bool {
 /// (spec Section 4.2). The optional `network` segment selects it, and a DID
 /// without a segment uses mainnet-beta.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Network {
     /// Mainnet-beta, written `did:bio:<idstring>` with no network segment.
     #[default]

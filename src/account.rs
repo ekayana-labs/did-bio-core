@@ -95,6 +95,7 @@ pub mod vm_flags {
 /// Discriminant values are the on chain Borsh enum tags.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum KeyType {
     /// A 32 byte Ed25519 public key, materialized as a `Multikey`
     /// (`z6Mk...`).
