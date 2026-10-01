@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-01
+
 ### Added
 
 - `try_find_program_address`, with the `MAX_SEEDS` and `MAX_SEED_LEN`
@@ -86,7 +88,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Ed25519 and ML-DSA-87 signature verification (`verify` and `fips`
   features).
 
-[Unreleased]: https://github.com/ekayana-labs/did-bio-core/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/ekayana-labs/did-bio-core/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ekayana-labs/did-bio-core/releases/tag/v0.2.0
 [0.1.2]: https://github.com/ekayana-labs/did-bio-core/releases/tag/v0.1.2
 [0.1.1]: https://github.com/ekayana-labs/did-bio-core/releases/tag/v0.1.1
 [0.1.0]: https://github.com/ekayana-labs/did-bio-core/releases/tag/v0.1.0
