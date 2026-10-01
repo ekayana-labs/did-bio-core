@@ -12,8 +12,8 @@ use did_bio_core::{
 
 #[test]
 fn spec_example_pda() {
-    // Cross computed vector (solana-pubkey vs this crate) for the spec
-    // Section 5.6 example subject.
+    // A vector cross computed between solana-pubkey and this crate, for the
+    // example subject of spec Section 5.6.
     let did = example_did();
     let (address, bump) = find_did_account_address(&did.subject);
     assert_eq!(
@@ -25,7 +25,7 @@ fn spec_example_pda() {
 
 #[test]
 fn low_bump_pda_exercises_curve_rejection() {
-    // The [16u8; 32] subject's first two candidates are on curve; the
+    // The [16u8; 32] subject's first two candidates are on curve, so the
     // derivation must walk down to bump 253.
     let (address, bump) = find_did_account_address(&[16u8; 32]);
     assert_eq!(
@@ -38,7 +38,7 @@ fn low_bump_pda_exercises_curve_rejection() {
 #[test]
 fn key_buffer_pda_for_the_spec_example() {
     // The subject uploading a key into its own registry account. Cross
-    // computed with solana-pubkey; the resolver's parity tests check it
+    // computed with solana-pubkey, and the resolver's parity tests check it
     // against the SDK on every run.
     let did = example_did();
     let (did_account, _) = find_did_account_address(&did.subject);

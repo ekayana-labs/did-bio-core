@@ -23,8 +23,8 @@ pub enum Error {
     /// Registry account bytes failed the discriminator check or Borsh
     /// deserialization (spec Section 6.2 step 7).
     InvalidAccountData(&'static str),
-    /// The operation is not defined for this verification method type
-    /// (e.g. signature verification with an X25519 key agreement key).
+    /// The operation is not defined for this verification method type, such
+    /// as signature verification with an X25519 key agreement key.
     UnsupportedKeyType(&'static str),
     /// A signature did not verify against the given key and message.
     SignatureVerification,
@@ -61,9 +61,10 @@ pub mod resolution_error {
     pub const INVALID_DID: &str = "invalidDid";
     /// The input DID URL violates DID URL syntax.
     pub const INVALID_DID_URL: &str = "invalidDidUrl";
-    /// An unexpected internal condition (e.g. undecodable registry state).
+    /// An unexpected internal condition, such as undecodable registry state.
     pub const INTERNAL_ERROR: &str = "internalError";
-    /// An owned subject with no registry account: nothing to resolve.
+    /// An owned subject with no registry account, so there is nothing to
+    /// resolve.
     pub const NOT_FOUND: &str = "notFound";
 }
 

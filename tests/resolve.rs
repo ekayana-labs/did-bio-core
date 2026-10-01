@@ -22,7 +22,7 @@ fn materializes_rich_document() {
     );
     let document = resolution.document.unwrap();
 
-    // Section 5.5 controllers: native key mapped into the DID's own network.
+    // Section 5.5 controllers map a native key into the DID's own network.
     assert_eq!(
         document.controller,
         vec![
@@ -67,7 +67,8 @@ fn materializes_rich_document() {
         other => panic!("expected JWK material, got {other:?}"),
     }
 
-    // Section 5.3 relationships: PROTECTED not expressed; flags map to arrays.
+    // Section 5.3 relationships. PROTECTED is not expressed and the flags
+    // map to arrays.
     let default_id = did.default_verification_method_id();
     assert_eq!(document.authentication, vec![default_id.clone()]);
     assert_eq!(
@@ -102,7 +103,8 @@ fn wrong_owner_or_empty_account_resolves_generatively() {
     let did = example_did();
     let data = rich_account_image(&did.subject);
 
-    // Section 6.2 step 6: lamport only (system owned) account at the PDA.
+    // Section 6.2 step 6, a lamport only account at the PDA, owned by the
+    // system program.
     let foreign = RawAccount {
         owner: [0u8; 32],
         data: data.clone(),
@@ -155,7 +157,7 @@ fn subject_mismatch_is_internal_error() {
 #[test]
 fn deactivated_resolves_to_tombstone_document() {
     let did = example_did();
-    // Section 6.4: tombstone - all vecs empty, deactivated = true.
+    // The Section 6.4 tombstone has all vecs empty and deactivated = true.
     let data = AccountImage::new()
         .u64(9)
         .u8(254)
@@ -174,7 +176,7 @@ fn deactivated_resolves_to_tombstone_document() {
         Some("9")
     );
 
-    // Section 5.7: minimal document.
+    // The minimal document of Section 5.7.
     let document = resolution.document.unwrap();
     assert_eq!(
         serde_json::to_value(&document).unwrap(),
@@ -268,7 +270,7 @@ fn block_on<F: core::future::Future>(future: F) -> F::Output {
 
 #[test]
 fn owned_subject_without_an_account_is_not_found() {
-    // Section 6.2 step 6: only a key subject has a generative document.
+    // Only a key subject has a generative document (Section 6.2 step 6).
     let owned = BioDid::new(Network::Devnet, OWNED_SUBJECT);
     assert!(generative_document(&owned).is_none());
 
@@ -316,7 +318,7 @@ fn owned_subject_materializes_from_its_account() {
     assert_eq!(document.verification_method.len(), 1);
     let vm = &document.verification_method[0];
     assert_eq!(vm.id, owned.url("default"));
-    // The document's only key is the authority's, not the subject.
+    // The document's only key is the authority's key.
     match &vm.material {
         VerificationMaterial::PublicKeyMultibase(multikey) => {
             let (_, key) = did_bio_core::multikey::decode(multikey).unwrap();

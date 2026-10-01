@@ -1,37 +1,38 @@
-//! Data model and resolution for the **`did:bio`** DID method - a W3C
-//! DID 1.0 conformant method for biological research data, anchored on
-//! the Solana blockchain by the `bio-did-registry` program.
+//! Data model and resolution for the `did:bio` DID method, a W3C DID 1.0
+//! conformant method for biological research data, anchored on the Solana
+//! blockchain by the `bio-did-registry` program.
 //!
 //! This crate is the transport free core shared by resolvers, backends,
-//! and tooling:
+//! and tooling. It provides the pieces below.
 //!
-//! - [`BioDid`] / [`DidUrl`] - identifier parsing and validation against
+//! - [`BioDid`] and [`DidUrl`] parse identifiers and validate them against
 //!   the method ABNF (spec Section 4).
-//! - [`multikey`] - Multikey encoding/decoding (Controlled Identifiers
-//!   v1.0) for Ed25519, X25519, and secp256k1 keys.
-//! - [`DidDocument`] and friends - the DID document data model (spec Section 5),
-//!   including the post quantum **ML-DSA-87** (FIPS 204) verification
-//!   method type (`JsonWebKey` / `AKP`).
-//! - [`DidAccountState`] - a dependency free deserializer for the
+//! - [`multikey`] encodes and decodes Multikey values (Controlled
+//!   Identifiers v1.0) for Ed25519, X25519, and secp256k1 keys.
+//! - [`DidDocument`] and its related types are the DID document data model
+//!   (spec Section 5). It includes the post quantum ML-DSA-87 (FIPS 204)
+//!   verification method type, a `JsonWebKey` with the `AKP` key type.
+//! - [`DidAccountState`] is a dependency free deserializer for the
 //!   registry's on chain account format.
-//! - [`KeyBufferState`] - the staging account through which keys larger
-//!   than one transaction (ML-DSA-87) are uploaded in chunks.
-//! - [`resolve_from_account`] - steps 6-9 of the resolution algorithm
-//!   (spec Section 6.2) as a pure function, with the generative fallback;
-//!   [`resolve_with`] / [`resolve_with_async`] drive it through a
+//! - [`KeyBufferState`] decodes the staging account through which keys
+//!   larger than one transaction, such as ML-DSA-87 keys, are uploaded in
+//!   chunks.
+//! - [`resolve_from_account`] runs steps 6-9 of the resolution algorithm
+//!   (spec Section 6.2) as a pure function, with the generative fallback.
+//!   [`resolve_with`] and [`resolve_with_async`] drive it through a
 //!   pluggable [`RegistryReader`].
 //! - [`find_did_account_address`], [`find_key_buffer_address`] and
-//!   [`find_owned_subject`] (feature `pda`) - PDA derivation without a
-//!   Solana SDK dependency.
+//!   [`find_owned_subject`] derive PDAs without a Solana SDK dependency,
+//!   under the `pda` feature.
 //!
 //! # Resolution without a network
 //!
-//! A subject is either an Ed25519 key or an *owned* subject, a program
+//! A subject is either an Ed25519 key or an owned subject, a program
 //! derived address that `initialize_owned` binds to the wallet that signed
-//! for it ([`BioDid::is_key_subject`] tells them apart). Every key subject
-//! resolves; absent on chain state yields the deterministic *generative*
+//! for it. [`BioDid::is_key_subject`] tells them apart. Every key subject
+//! resolves. Without on chain state it yields the deterministic generative
 //! document containing the key itself, while an owned subject without an
-//! account resolves to `notFound`:
+//! account resolves to `notFound`.
 //!
 //! ```
 //! use did_bio_core::{resolve_from_account, BioDid};
@@ -40,7 +41,8 @@
 //!     .parse()
 //!     .unwrap();
 //!
-//! // No registry account fetched -> generative document, versionId "0".
+//! // Without a registry account the result is the generative document
+//! // with versionId "0".
 //! let resolution = resolve_from_account(&did, None);
 //! let document = resolution.document.unwrap();
 //! assert_eq!(document.id, did.to_string());
@@ -53,16 +55,15 @@
 //!
 //! # Features
 //!
-//! - `pda` *(default)* - PDA derivation ([`find_did_account_address`])
-//!   and the [`resolve_with`] / [`resolve_with_async`] drivers. Pure
-//!   Rust (`sha2`, `curve25519-dalek`).
-//! - `verify` - signature verification for Ed25519 and ML-DSA-87
+//! - `pda` is on by default. It adds PDA derivation
+//!   ([`find_did_account_address`]) and the [`resolve_with`] and
+//!   [`resolve_with_async`] drivers, in pure Rust with `sha2`.
+//! - `verify` adds signature verification for Ed25519 and ML-DSA-87
 //!   verification methods via `aws-lc-rs`.
-//! - `fips` - like `verify`, but binds the FIPS validated AWS-LC
-//!   module.
+//! - `fips` is like `verify`, but binds the FIPS validated AWS-LC module.
 //!
-//! Spec: *The `did:bio` DID Method Specification v1.0*
-//! (<https://github.com/ekayana-labs/did-bio-spec>). Section references
+//! The spec is the `did:bio` DID Method Specification v1.2
+//! (<https://github.com/ekayana-labs/bio-did-spec>). Section references
 //! throughout this crate point there.
 
 #![forbid(unsafe_code)]

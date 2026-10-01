@@ -1,4 +1,5 @@
-//! The `did:bio` identifier: parsing, validation, and display (spec Section 4).
+//! Parsing, validation and display of the `did:bio` identifier
+//! (spec Section 4).
 
 use core::fmt;
 use core::str::FromStr;
@@ -13,14 +14,14 @@ pub const METHOD_NAME: &str = "bio";
 /// The `did:bio:` scheme and method prefix, always lowercase.
 pub const DID_PREFIX: &str = "did:bio:";
 
-/// Regular expression matching a full `did:bio` DID (spec Section 4.1, informative -
-/// [`BioDid::parse`] is the normative implementation).
+/// Regular expression matching a full `did:bio` DID (spec Section 4.1). It
+/// is informative, and [`BioDid::parse`] is the normative implementation.
 pub const DID_REGEX: &str = "^did:bio(:(devnet|testnet|localnet))?:[1-9A-HJ-NP-Za-km-z]{32,44}$";
 
 const IDSTRING_MIN_LEN: usize = 32;
 const IDSTRING_MAX_LEN: usize = 44;
 
-/// Length in bytes of a subject key (an Ed25519 public key).
+/// Length in bytes of a subject, whether an Ed25519 key or an owned subject.
 pub const SUBJECT_KEY_LEN: usize = 32;
 
 fn is_base58_char(b: u8) -> bool {
@@ -31,24 +32,25 @@ fn is_base58_char(b: u8) -> bool {
 }
 
 /// The Solana cluster acting as the verifiable data registry for a DID
-/// (spec Section 4.2). Selected by the optional `network` segment; a DID without a
-/// segment uses mainnet-beta.
+/// (spec Section 4.2). The optional `network` segment selects it, and a DID
+/// without a segment uses mainnet-beta.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum Network {
-    /// `did:bio:<idstring>` - mainnet-beta (no network segment).
+    /// Mainnet-beta, written `did:bio:<idstring>` with no network segment.
     #[default]
     Mainnet,
-    /// `did:bio:devnet:<idstring>` - the intended reference deployment cluster.
+    /// Devnet, written `did:bio:devnet:<idstring>`. It is the reference
+    /// deployment cluster.
     Devnet,
-    /// `did:bio:testnet:<idstring>`.
+    /// Testnet, written `did:bio:testnet:<idstring>`.
     Testnet,
-    /// `did:bio:localnet:<idstring>` - a local validator.
+    /// A local validator, written `did:bio:localnet:<idstring>`.
     Localnet,
 }
 
 impl Network {
-    /// The DID `network` segment for this cluster, or `None` for mainnet
-    /// (which is expressed by omitting the segment).
+    /// The DID `network` segment for this cluster, or `None` for mainnet,
+    /// which is expressed by omitting the segment.
     pub const fn segment(self) -> Option<&'static str> {
         match self {
             Network::Mainnet => None,
@@ -58,8 +60,9 @@ impl Network {
         }
     }
 
-    /// Parse a `network` segment. `None` for anything that is not exactly
-    /// `devnet`, `testnet`, or `localnet` (there is no `mainnet` segment).
+    /// Parse a `network` segment. Returns `None` for anything that is not
+    /// exactly `devnet`, `testnet`, or `localnet`. There is no `mainnet`
+    /// segment.
     pub fn from_segment(segment: &str) -> Option<Network> {
         match segment {
             "devnet" => Some(Network::Devnet),
@@ -69,8 +72,9 @@ impl Network {
         }
     }
 
-    /// The conventional public RPC endpoint for this cluster (informative;
-    /// resolvers may use any endpoint they trust - see spec Section 7).
+    /// The conventional public RPC endpoint for this cluster. It is
+    /// informative, and resolvers may use any endpoint they trust (spec
+    /// Section 7).
     pub const fn default_rpc_url(self) -> &'static str {
         match self {
             Network::Mainnet => "https://api.mainnet-beta.solana.com",
@@ -83,9 +87,9 @@ impl Network {
 
 /// A parsed, validated `did:bio` DID.
 ///
-/// A `BioDid` is the pair of a [`Network`] and a 32 byte **subject key**
-/// (an Ed25519 public key). Its string form is
-/// `did:bio[:<network>]:<base58btc(subject)>`.
+/// A `BioDid` is the pair of a [`Network`] and a 32 byte subject, which is
+/// an Ed25519 public key or the program derived address of an owned
+/// subject. Its string form is `did:bio[:<network>]:<base58btc(subject)>`.
 ///
 /// ```
 /// use did_bio_core::{BioDid, Network};
@@ -100,8 +104,8 @@ impl Network {
 pub struct BioDid {
     /// Cluster selected by the `network` segment.
     pub network: Network,
-    /// The 32 byte subject encoded in the `idstring`: an Ed25519 key for a
-    /// key subject, a program derived address for an owned subject.
+    /// The 32 byte subject encoded in the `idstring`. It is an Ed25519 key
+    /// for a key subject and a program derived address for an owned subject.
     pub subject: [u8; SUBJECT_KEY_LEN],
 }
 
@@ -120,7 +124,7 @@ impl BioDid {
     }
 
     /// The DID that `initialize_owned(nonce)` signed by `authority` creates
-    /// on `network` (spec Section 4.2): its subject is
+    /// on `network` (spec Section 4.2). Its subject is
     /// `find_program_address(["bio-did-owned", authority, nonce_le])`.
     #[cfg(feature = "pda")]
     pub fn owned(network: Network, authority: &[u8; 32], nonce: u64) -> Self {
@@ -129,7 +133,7 @@ impl BioDid {
     }
 
     /// True when the subject is an Ed25519 key, so the DID has a generative
-    /// document; false for an owned subject, which exists only through the
+    /// document. False for an owned subject, which exists only through the
     /// registry (spec Section 6.2 step 6).
     pub fn is_key_subject(&self) -> bool {
         is_on_curve(&self.subject)
@@ -138,10 +142,10 @@ impl BioDid {
     /// Parse and validate a DID against the ABNF of spec Section 4.1 and the
     /// 32 byte decoding rule of Section 6.2 step 3.
     ///
-    /// Rejects (with [`Error::InvalidDid`]): a wrong prefix or one not in lowercase,
-    /// an unknown or empty network segment, an `idstring` outside 32-44
-    /// characters or outside the base58btc alphabet, and an `idstring` that
-    /// does not decode to exactly 32 bytes.
+    /// Rejects, with [`Error::InvalidDid`], a wrong prefix or one not in
+    /// lowercase, an unknown or empty network segment, an `idstring` outside
+    /// 32-44 characters or outside the base58btc alphabet, and an `idstring`
+    /// that does not decode to exactly 32 bytes.
     pub fn parse(did: &str) -> Result<Self, Error> {
         let rest = did
             .strip_prefix(DID_PREFIX)
@@ -178,12 +182,12 @@ impl BioDid {
         Ok(BioDid { network, subject })
     }
 
-    /// The method specific identifier: base58btc of the subject key.
+    /// The method specific identifier, the base58btc form of the subject.
     pub fn method_specific_id(&self) -> String {
         bs58::encode(&self.subject).into_string()
     }
 
-    /// The DID URL of a fragment within this DID document: `<did>#<fragment>`.
+    /// The DID URL of a fragment within this DID document, `<did>#<fragment>`.
     pub fn url(&self, fragment: &str) -> String {
         format!("{self}#{fragment}")
     }
@@ -231,11 +235,11 @@ impl<'de> Deserialize<'de> for BioDid {
     }
 }
 
-/// A `did:bio` DID URL: a DID plus an optional `#fragment`.
+/// A `did:bio` DID URL, a DID plus an optional `#fragment`.
 ///
-/// `did:bio` defines no path or query components; fragments follow the
-/// registry's fragment rule (`[A-Za-z0-9_-]{1,32}`, spec Section 6.3), which every
-/// fragment in a materialized document satisfies.
+/// `did:bio` defines no path or query components. Fragments follow the
+/// registry's fragment rule `[A-Za-z0-9_-]{1,32}` (spec Section 6.3), which
+/// every fragment in a materialized document satisfies.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DidUrl {
     /// The DID part, before any `#`.
@@ -257,8 +261,8 @@ pub fn is_valid_fragment(fragment: &str) -> bool {
 impl DidUrl {
     /// Parse `<did>[#<fragment>]`.
     ///
-    /// Rejects path (`/`) and query (`?`) components - `did:bio` does not
-    /// define them - and fragments outside `[A-Za-z0-9_-]{1,32}`.
+    /// Rejects path (`/`) and query (`?`) components, which `did:bio` does
+    /// not define, and fragments outside `[A-Za-z0-9_-]{1,32}`.
     pub fn parse(url: &str) -> Result<Self, Error> {
         let (did_part, fragment) = match url.split_once('#') {
             Some((did_part, fragment)) => (did_part, Some(fragment)),

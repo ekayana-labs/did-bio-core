@@ -67,7 +67,7 @@ fn invalid_did_resolves_to_error_result() {
         Some("invalidDid")
     );
     assert_eq!(resolution.document, None);
-    // Unsuccessful resolution: didDocumentMetadata is the empty structure.
+    // In an unsuccessful resolution didDocumentMetadata is the empty structure.
     assert_eq!(
         serde_json::to_value(&resolution.document_metadata).unwrap(),
         serde_json::json!({})

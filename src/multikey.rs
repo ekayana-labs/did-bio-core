@@ -9,11 +9,12 @@ use crate::error::Error;
 /// Multicodec key codecs used by `did:bio` verification methods.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum KeyCodec {
-    /// `ed25519-pub`, multicodec `0xed`; 32 byte key; `z6Mk...`.
+    /// `ed25519-pub`, multicodec `0xed`, a 32 byte key encoded as `z6Mk...`.
     Ed25519Pub,
-    /// `x25519-pub`, multicodec `0xec`; 32 byte key; `z6LS...`.
+    /// `x25519-pub`, multicodec `0xec`, a 32 byte key encoded as `z6LS...`.
     X25519Pub,
-    /// `secp256k1-pub`, multicodec `0xe7`; 33 byte compressed key; `zQ3s...`.
+    /// `secp256k1-pub`, multicodec `0xe7`, a 33 byte compressed key encoded
+    /// as `zQ3s...`.
     Secp256k1Pub,
 }
 
@@ -36,8 +37,8 @@ impl KeyCodec {
         }
     }
 
-    /// The characteristic multibase prefix of encoded keys (informative,
-    /// spec Section 5.2 table).
+    /// The characteristic multibase prefix of encoded keys. It is
+    /// informative (spec Section 5.2 table).
     pub const fn multibase_prefix(self) -> &'static str {
         match self {
             KeyCodec::Ed25519Pub => "z6Mk",
@@ -56,7 +57,8 @@ impl KeyCodec {
     }
 }
 
-/// Append `value` to `out` as an unsigned varint (multiformats LEB128).
+/// Append `value` to `out` as an unsigned varint, the multiformats LEB128
+/// form.
 fn write_uvarint(out: &mut Vec<u8>, mut value: u64) {
     loop {
         let byte = (value & 0x7f) as u8;

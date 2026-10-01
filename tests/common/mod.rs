@@ -1,4 +1,4 @@
-//! Shared fixtures: the spec's example DID and a Borsh writer for building
+//! Shared fixtures, the spec's example DID and a Borsh writer for building
 //! registry account images.
 #![allow(dead_code)]
 
@@ -6,10 +6,10 @@ use did_bio_core::account::{vm_flags, ACCOUNT_DISCRIMINATOR, DEFAULT_FRAGMENT, P
 use did_bio_core::document::ML_DSA_87_PUBLIC_KEY_LEN;
 use did_bio_core::{BioDid, RawAccount};
 
-/// Spec Section 4.2 / Section 5.6 example DID (devnet).
+/// The example DID of spec Section 4.2 and Section 5.6, on devnet.
 pub const EXAMPLE_DID: &str = "did:bio:devnet:2T6zLFvMx7NJac5qQtiKTaPhMwHLkwKETWjUK1yKv4tc";
 pub const EXAMPLE_IDSTRING: &str = "2T6zLFvMx7NJac5qQtiKTaPhMwHLkwKETWjUK1yKv4tc";
-/// Spec Section 5.6: the example subject's Multikey form.
+/// The example subject's Multikey form (spec Section 5.6).
 pub const EXAMPLE_MULTIKEY: &str = "z6MkfuN2vWAoHermh6vY6TgAJfwhBWZCApZb9XeQ9HwLqHfz";
 
 pub fn example_did() -> BioDid {
@@ -60,8 +60,8 @@ impl AccountImage {
     }
 }
 
-/// A full account image: subject with two controllers, all four key
-/// types, and one service. updated_at = 2025-07-23T00:00:00Z.
+/// A full account image, a subject with two controllers, all four key
+/// types and one service. Its updated_at is 2025-07-23T00:00:00Z.
 pub fn rich_account_image(subject: &[u8; 32]) -> Vec<u8> {
     let other_key = [9u8; 32];
     AccountImage::new()
@@ -102,8 +102,8 @@ pub fn rich_account_image(subject: &[u8; 32]) -> Vec<u8> {
         .bytes
 }
 
-/// Pinned across the registry program and the backend: the owned subject
-/// of authority `[0x11; 32]` and nonce 42.
+/// The owned subject of authority `[0x11; 32]` and nonce 42, pinned across
+/// the registry program and the backend.
 pub const OWNED_AUTHORITY: [u8; 32] = [0x11; 32];
 pub const OWNED_NONCE: u64 = 42;
 pub const OWNED_SUBJECT: [u8; 32] = [
@@ -111,8 +111,8 @@ pub const OWNED_SUBJECT: [u8; 32] = [
     247, 212, 197, 39, 52, 9, 159, 203, 10, 250, 28,
 ];
 
-/// The image `initialize_owned` writes: version 1, the authority's key as
-/// the protected default method, nothing else.
+/// The image `initialize_owned` writes, with version 1, the authority's key
+/// as the protected default method and nothing else.
 pub fn owned_account_image(subject: &[u8; 32], authority: &[u8; 32]) -> Vec<u8> {
     AccountImage::new()
         .u64(1)

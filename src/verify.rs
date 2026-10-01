@@ -1,15 +1,15 @@
-//! Signature verification for `did:bio` verification methods
-//! (features `verify` / `fips`).
+//! Signature verification for `did:bio` verification methods, under the
+//! `verify` and `fips` features.
 //!
-//! Backed by [aws-lc-rs]. With the `fips` feature the FIPS validated
-//! AWS-LC module is linked instead; the API is identical. Call
-//! [`fips_mode`] to confirm at runtime.
+//! Backed by [aws-lc-rs]. The `fips` feature links the FIPS validated
+//! AWS-LC module instead, with an identical API. Call [`fips_mode`] to
+//! confirm at runtime.
 //!
 //! Supported algorithms follow the method's verification material types
-//! (spec Section 5.2): **Ed25519** (`Multikey`, `z6Mk...`) and **ML-DSA-87**
-//! (FIPS 204; `JsonWebKey` with `kty "AKP"`, `alg "ML-DSA-87"`).
-//! X25519 is a key agreement type and cannot verify signatures;
-//! secp256k1 verification is out of scope for this crate.
+//! (spec Section 5.2). They are Ed25519, a `Multikey` starting `z6Mk`, and
+//! ML-DSA-87 (FIPS 204), a `JsonWebKey` with `kty "AKP"` and
+//! `alg "ML-DSA-87"`. X25519 is a key agreement type and cannot verify
+//! signatures, and secp256k1 verification is out of scope for this crate.
 //!
 //! [aws-lc-rs]: https://docs.rs/aws-lc-rs
 
@@ -66,10 +66,10 @@ pub fn verify_ml_dsa_87(public_key: &[u8], message: &[u8], signature: &[u8]) -> 
 /// Verify `signature` over `message` against a verification method map,
 /// dispatching on its material type.
 ///
-/// Errors with [`Error::UnsupportedKeyType`] for X25519 (key agreement
-/// only), secp256k1 (not provided by this crate), and JWKs other than
-/// `AKP`/`ML-DSA-87`; with [`Error::SignatureVerification`] when the
-/// signature does not verify.
+/// Returns [`Error::UnsupportedKeyType`] for X25519, which is key agreement
+/// only, for secp256k1, which this crate does not provide, and for JWKs
+/// other than `AKP` with `ML-DSA-87`. Returns
+/// [`Error::SignatureVerification`] when the signature does not verify.
 pub fn verify_with_method(
     method: &VerificationMethodMap,
     message: &[u8],
@@ -109,12 +109,12 @@ pub fn verify_with_method(
 }
 
 /// Verify `signature` over `message` against the verification method
-/// `vm_id` (a full DID URL or bare fragment), requiring that the method
-/// is listed in `relationship` (by reference) in `document`.
+/// `vm_id`, a full DID URL or a bare fragment. The method must be listed by
+/// reference under `relationship` in `document`.
 ///
-/// This is the check a capability consumer performs: "does this DID's
-/// document authorize this key for this purpose, and did that key sign
-/// this message?"
+/// A capability consumer performs this check to learn whether the DID's
+/// document authorizes the key for the purpose and whether that key signed
+/// the message.
 pub fn verify_for_relationship(
     document: &crate::document::DidDocument,
     relationship: crate::document::VerificationRelationship,

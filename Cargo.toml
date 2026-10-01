@@ -17,7 +17,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 bs58 = "0.5"
 base64 = "0.23"
-# Whether a subject is a key (a curve point) decides between the generative
+# Whether a subject is a key, a curve point, decides between the generative
 # fallback and `notFound`, so the curve check is not optional.
 curve25519-dalek = { version = "5", default-features = false, features = ["alloc"] }
 
@@ -33,7 +33,7 @@ sha2 = "0.11"
 [features]
 default = ["pda"]
 ## PDA derivation (`find_did_account_address`, `find_owned_subject`) and the
-## resolution drivers that need it. Pure Rust: sha2.
+## resolution drivers that need it. It is pure Rust and uses sha2.
 pda = ["dep:sha2"]
 ## Signature verification (Ed25519, ML-DSA-87) via aws-lc-rs.
 verify = ["dep:aws-lc-rs"]

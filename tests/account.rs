@@ -59,7 +59,7 @@ fn rejects_malformed_account_data() {
         assert!(DidAccountState::from_account_data(&good[..len]).is_err());
     }
 
-    // hostile length prefix (4 GiB of controllers) must not allocate
+    // a hostile length prefix, 4 GiB of controllers, must not allocate
     let hostile = AccountImage::new()
         .u64(1)
         .u8(255)
@@ -78,8 +78,8 @@ fn rejects_malformed_account_data() {
     bad_bool[8 + 8 + 1 + 32] = 2;
     assert!(DidAccountState::from_account_data(&bad_bool).is_err());
 
-    // unknown verification method type tag: patch the default VM's tag,
-    // located right after its fragment string.
+    // unknown verification method type tag, patched into the default VM
+    // right after its fragment string
     let mut bad_tag = good;
     let vm_tag_offset = 8 // discriminator
         + 8 + 1 + 32 + 1 + 8 // scalars

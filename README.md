@@ -7,7 +7,7 @@
 [![license](https://img.shields.io/crates/l/did-bio-core)](LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ekayana-labs/did-bio-core/badge)](https://scorecard.dev/viewer/?uri=github.com/ekayana-labs/did-bio-core)
 
-Data model and resolution for the **`did:bio`** DID method - a
+Data model and resolution for the `did:bio` DID method, a
 [W3C DID 1.0](https://www.w3.org/TR/did-1.0/) conformant method for
 biological research data, anchored on the Solana blockchain by the
 [`bio-did-registry`](https://github.com/ekayana-labs/bio-did-registry)
@@ -15,7 +15,7 @@ program.
 
 This crate is the transport free core shared by resolvers, backends, and
 tooling. It implements the
-[did:bio method specification](https://github.com/ekayana-labs/did-bio-spec)
+[did:bio method specification](https://github.com/ekayana-labs/bio-did-spec)
 directly, with golden tests against the spec's own vectors.
 
 ## What's inside
@@ -27,21 +27,21 @@ directly, with golden tests against the spec's own vectors.
 | `document` | Section 5 | `DidDocument`, verification methods, services, resolution metadata |
 | `account` | Section 5-6 | Registry constants and a dependency free deserializer for the on chain `DidAccount` |
 | `resolve` | Section 6.2 | The resolution algorithm as a pure function, generative fallback included, plus sync/async `RegistryReader` drivers |
-| `pda` | Section 4.2, 6.2(4) | `find_program_address`, DID account, key buffer and owned subject derivation without a Solana SDK dependency *(feature `pda`, default)* |
-| `verify` | Section 5.2 | Ed25519 + **ML-DSA-87 (FIPS 204)** signature verification via aws-lc-rs *(features `verify` / `fips`)* |
+| `pda` | Section 4.2, 6.2(4) | `find_program_address`, DID account, key buffer and owned subject derivation without a Solana SDK dependency, behind the default `pda` feature |
+| `verify` | Section 5.2 | Ed25519 and ML-DSA-87 (FIPS 204) signature verification via aws-lc-rs, behind the `verify` and `fips` features |
 
-The post quantum **ML-DSA-87** verification method type (`JsonWebKey`,
-`kty "AKP"`, `alg "ML-DSA-87"` per draft-ietf-cose-dilithium) is
-supported end to end: on chain type tag, JWK mapping, key length
-validation, and signature verification.
+The post quantum ML-DSA-87 verification method type is supported end to
+end, from the on chain type tag and the JWK mapping to key length
+validation and signature verification. It is a `JsonWebKey` with
+`kty "AKP"` and `alg "ML-DSA-87"`, per draft-ietf-cose-dilithium.
 
 ## Example
 
-A subject is either an Ed25519 key or an *owned* subject, a program derived
+A subject is either an Ed25519 key or an owned subject, a program derived
 address bound to the wallet that created it (`BioDid::owned`,
-`find_owned_subject`). Every key subject resolves; without on chain state,
-resolution yields the deterministic *generative* document, while an owned
-subject without an account resolves to `notFound`:
+`find_owned_subject`). Every key subject resolves. Without on chain state,
+resolution yields the deterministic generative document, while an owned
+subject without an account resolves to `notFound`.
 
 ```rust
 use did_bio_core::{resolve_from_account, BioDid};
@@ -49,7 +49,8 @@ use did_bio_core::{resolve_from_account, BioDid};
 let did: BioDid = "did:bio:devnet:2T6zLFvMx7NJac5qQtiKTaPhMwHLkwKETWjUK1yKv4tc"
     .parse()?;
 
-// Step 6 fallback: no registry account -> generative document.
+// Step 6 falls back to the generative document when no registry account
+// exists.
 let resolution = resolve_from_account(&did, None);
 let document = resolution.document.unwrap();
 assert_eq!(document.id, did.to_string());
@@ -58,26 +59,28 @@ assert!(did.is_key_subject());
 ```
 
 Resolution against a live cluster plugs any account fetcher into the
-`RegistryReader` / `AsyncRegistryReader` traits; the crate derives the PDA
-and applies steps 6-9 (ownership + discriminator checks, deactivation,
-materialization). A fetcher **must** report transport failures as errors,
-never as "account missing" - see the withholding attack in spec Section 7.
+`RegistryReader` or `AsyncRegistryReader` trait. The crate derives the PDA
+and applies steps 6-9, which cover the ownership and discriminator checks,
+deactivation and materialization. A fetcher must report a transport failure
+as an error and never as a missing account. Spec Section 7 describes the
+withholding attack this prevents.
 
 ## Features
 
 | Feature | Default | Adds |
 |---|---|---|
 | `pda` | yes | PDA derivation (`sha2`) and the resolution drivers |
-| `verify` | - | Ed25519 + ML-DSA-87 signature verification via `aws-lc-rs` |
-| `fips` | - | `verify`, linked against the FIPS validated AWS-LC module (build needs CMake + Go) |
+| `verify` | no | Ed25519 and ML-DSA-87 signature verification via `aws-lc-rs` |
+| `fips` | no | `verify`, linked against the FIPS validated AWS-LC module, whose build needs CMake and Go |
 
-With default features the dependency tree is pure Rust: `serde`,
-`serde_json`, `bs58`, `base64`, `sha2`, `curve25519-dalek`.
+With default features the dependency tree is pure Rust. It holds `serde`,
+`serde_json`, `bs58`, `base64`, `sha2` and `curve25519-dalek`.
 
 ## Consumers
 
-- `bio-did-registry/clients/resolver` - the reference CLI resolver.
-- `bio-did-seq` - the Ekayaan research data backend.
+- [`bio-did-resolver`](https://github.com/ekayana-labs/bio-did-resolver) is
+  the reference CLI resolver.
+- `bio-did-seq` is the Ekayaan research data backend.
 
 ## License
 
