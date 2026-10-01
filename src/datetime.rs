@@ -1,10 +1,11 @@
-//! Minimal Unix-timestamp -> XML datetime formatting.
+//! Minimal formatting of a Unix timestamp as an XML datetime.
 //!
 //! Resolution metadata reports `updated` as an XML datetime (spec Section 6.2
-//! step 9). This avoids a date time dependency: days from civil algorithm,
-//! UTC only, whole seconds.
+//! step 9). This module avoids a date time dependency by using the civil
+//! from days algorithm, in UTC and whole seconds only.
 
-/// Format a Unix timestamp as an XML datetime, e.g. `2026-07-23T04:10:00Z`.
+/// Format a Unix timestamp as an XML datetime, such as
+/// `2026-07-23T04:10:00Z`.
 pub fn xml_datetime(unix_seconds: i64) -> String {
     let days = unix_seconds.div_euclid(86_400);
     let secs = unix_seconds.rem_euclid(86_400);
@@ -33,7 +34,7 @@ mod tests {
         // leap day
         assert_eq!(xml_datetime(1_709_164_800), "2024-02-29T00:00:00Z");
         assert_eq!(xml_datetime(1_753_228_800), "2025-07-23T00:00:00Z");
-        // before the epoch (not produced by the registry, but must not panic)
+        // before the epoch, which the registry never produces but must not panic
         assert_eq!(xml_datetime(-1), "1969-12-31T23:59:59Z");
     }
 }

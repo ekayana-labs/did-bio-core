@@ -22,7 +22,7 @@ fn materializes_rich_document() {
     );
     let document = resolution.document.unwrap();
 
-    // Section 5.5 controllers: native key mapped into the DID's own network.
+    // Section 5.5 controllers map a native key into the DID's own network.
     assert_eq!(
         document.controller,
         vec![
@@ -67,7 +67,8 @@ fn materializes_rich_document() {
         other => panic!("expected JWK material, got {other:?}"),
     }
 
-    // Section 5.3 relationships: PROTECTED not expressed; flags map to arrays.
+    // Section 5.3 relationships. PROTECTED is not expressed and the flags
+    // map to arrays.
     let default_id = did.default_verification_method_id();
     assert_eq!(document.authentication, vec![default_id.clone()]);
     assert_eq!(
@@ -102,7 +103,8 @@ fn wrong_owner_or_empty_account_resolves_generatively() {
     let did = example_did();
     let data = rich_account_image(&did.subject);
 
-    // Section 6.2 step 6: lamport only (system owned) account at the PDA.
+    // Section 6.2 step 6, a lamport only account at the PDA, owned by the
+    // system program.
     let foreign = RawAccount {
         owner: [0u8; 32],
         data: data.clone(),
@@ -155,7 +157,7 @@ fn subject_mismatch_is_internal_error() {
 #[test]
 fn deactivated_resolves_to_tombstone_document() {
     let did = example_did();
-    // Section 6.4: tombstone - all vecs empty, deactivated = true.
+    // The Section 6.4 tombstone has all vecs empty and deactivated = true.
     let data = AccountImage::new()
         .u64(9)
         .u8(254)
@@ -174,7 +176,7 @@ fn deactivated_resolves_to_tombstone_document() {
         Some("9")
     );
 
-    // Section 5.7: minimal document.
+    // The minimal document of Section 5.7.
     let document = resolution.document.unwrap();
     assert_eq!(
         serde_json::to_value(&document).unwrap(),
@@ -245,20 +247,58 @@ fn async_driver_fetches_the_did_pda() {
     );
 }
 
+/// A reader whose state sits in an `Rc`, so its futures are not `Send`.
+#[cfg(feature = "pda")]
+struct SharedReader {
+    seen: std::rc::Rc<std::cell::RefCell<Vec<[u8; 32]>>>,
+    account: Option<RawAccount>,
+}
+
+#[cfg(feature = "pda")]
+impl did_bio_core::LocalAsyncRegistryReader for SharedReader {
+    type Error = String;
+
+    async fn fetch_account(&self, address: &[u8; 32]) -> Result<Option<RawAccount>, String> {
+        self.seen.borrow_mut().push(*address);
+        Ok(self.account.clone())
+    }
+}
+
+#[cfg(feature = "pda")]
+#[test]
+fn local_driver_takes_futures_that_are_not_send() {
+    let did = example_did();
+    let (address, _) = did_bio_core::find_did_account_address(&did.subject);
+    let reader = SharedReader {
+        seen: Default::default(),
+        account: Some(registry_account(rich_account_image(&did.subject))),
+    };
+    let resolution = block_on(did_bio_core::resolve_with_async_local(&reader, &did)).unwrap();
+    assert_eq!(
+        resolution.document_metadata.version_id.as_deref(),
+        Some("7")
+    );
+    assert_eq!(*reader.seen.borrow(), vec![address]);
+
+    // Every Send reader is a local one too.
+    let send = MapReader {
+        address,
+        account: None,
+    };
+    let resolution = block_on(did_bio_core::resolve_with_async_local(&send, &did)).unwrap();
+    assert_eq!(
+        resolution.document_metadata.version_id.as_deref(),
+        Some("0")
+    );
+}
+
 /// Minimal executor for a future that never actually suspends.
 #[cfg(feature = "pda")]
 fn block_on<F: core::future::Future>(future: F) -> F::Output {
     use core::pin::pin;
-    use core::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
+    use core::task::{Context, Poll, Waker};
 
-    fn noop_raw_waker() -> RawWaker {
-        const VTABLE: RawWakerVTable =
-            RawWakerVTable::new(|_| noop_raw_waker(), |_| {}, |_| {}, |_| {});
-        RawWaker::new(core::ptr::null(), &VTABLE)
-    }
-
-    let waker = unsafe { Waker::from_raw(noop_raw_waker()) };
-    let mut context = Context::from_waker(&waker);
+    let mut context = Context::from_waker(Waker::noop());
     let mut future = pin!(future);
     match future.as_mut().poll(&mut context) {
         Poll::Ready(output) => output,
@@ -268,7 +308,7 @@ fn block_on<F: core::future::Future>(future: F) -> F::Output {
 
 #[test]
 fn owned_subject_without_an_account_is_not_found() {
-    // Section 6.2 step 6: only a key subject has a generative document.
+    // Only a key subject has a generative document (Section 6.2 step 6).
     let owned = BioDid::new(Network::Devnet, OWNED_SUBJECT);
     assert!(generative_document(&owned).is_none());
 
@@ -316,7 +356,7 @@ fn owned_subject_materializes_from_its_account() {
     assert_eq!(document.verification_method.len(), 1);
     let vm = &document.verification_method[0];
     assert_eq!(vm.id, owned.url("default"));
-    // The document's only key is the authority's, not the subject.
+    // The document's only key is the authority's key.
     match &vm.material {
         VerificationMaterial::PublicKeyMultibase(multikey) => {
             let (_, key) = did_bio_core::multikey::decode(multikey).unwrap();
@@ -325,4 +365,57 @@ fn owned_subject_materializes_from_its_account() {
         other => panic!("unexpected material: {other:?}"),
     }
     assert_eq!(document.capability_invocation, vec![owned.url("default")]);
+}
+
+#[test]
+fn dereferences_what_a_fragment_names() {
+    use did_bio_core::{dereference, Dereferenced};
+
+    let did = example_did();
+    let resolution = resolve_from_account(
+        &did,
+        Some(&registry_account(rich_account_image(&did.subject))),
+    );
+    let document = resolution.document.as_ref().unwrap();
+    assert_eq!(
+        dereference(&resolution, None),
+        Ok(Dereferenced::Document(document))
+    );
+    match dereference(&resolution, Some("pq")) {
+        Ok(Dereferenced::VerificationMethod(vm)) => assert_eq!(vm.id, did.url("pq")),
+        other => panic!("expected the pq method, got {other:?}"),
+    }
+    match dereference(&resolution, Some("metadata")) {
+        Ok(Dereferenced::Service(service)) => {
+            assert_eq!(
+                serde_json::to_value(Dereferenced::Service(service)).unwrap(),
+                serde_json::to_value(service).unwrap()
+            );
+        }
+        other => panic!("expected the metadata service, got {other:?}"),
+    }
+    assert_eq!(dereference(&resolution, Some("missing")), Err("notFound"));
+
+    // A failed resolution passes its own error on.
+    let failed = resolve_str("did:bio:nope", None);
+    assert_eq!(dereference(&failed, None), Err("invalidDid"));
+
+    // A deactivated DID dereferences to its minimal document and nothing else.
+    let tombstone = AccountImage::new()
+        .u64(9)
+        .u8(254)
+        .raw(&did.subject)
+        .u8(1)
+        .i64(0)
+        .u32(0)
+        .u32(0)
+        .u32(0)
+        .u32(0)
+        .bytes;
+    let resolution = resolve_from_account(&did, Some(&registry_account(tombstone)));
+    assert!(matches!(
+        dereference(&resolution, None),
+        Ok(Dereferenced::Document(_))
+    ));
+    assert_eq!(dereference(&resolution, Some("default")), Err("notFound"));
 }

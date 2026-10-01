@@ -7,13 +7,13 @@ use common::{example_did, OWNED_AUTHORITY, OWNED_NONCE, OWNED_SUBJECT};
 use did_bio_core::account::{KEY_BUFFER_SEED, OWNED_SUBJECT_SEED, PROGRAM_ID};
 use did_bio_core::{
     find_did_account_address, find_key_buffer_address, find_owned_subject, find_program_address,
-    is_on_curve, BioDid, Network,
+    is_on_curve, try_find_program_address, BioDid, Network,
 };
 
 #[test]
 fn spec_example_pda() {
-    // Cross computed vector (solana-pubkey vs this crate) for the spec
-    // Section 5.6 example subject.
+    // A vector cross computed between solana-pubkey and this crate, for the
+    // example subject of spec Section 5.6.
     let did = example_did();
     let (address, bump) = find_did_account_address(&did.subject);
     assert_eq!(
@@ -25,7 +25,7 @@ fn spec_example_pda() {
 
 #[test]
 fn low_bump_pda_exercises_curve_rejection() {
-    // The [16u8; 32] subject's first two candidates are on curve; the
+    // The [16u8; 32] subject's first two candidates are on curve, so the
     // derivation must walk down to bump 253.
     let (address, bump) = find_did_account_address(&[16u8; 32]);
     assert_eq!(
@@ -38,7 +38,7 @@ fn low_bump_pda_exercises_curve_rejection() {
 #[test]
 fn key_buffer_pda_for_the_spec_example() {
     // The subject uploading a key into its own registry account. Cross
-    // computed with solana-pubkey; the resolver's parity tests check it
+    // computed with solana-pubkey, and the resolver's parity tests check it
     // against the SDK on every run.
     let did = example_did();
     let (did_account, _) = find_did_account_address(&did.subject);
@@ -82,4 +82,48 @@ fn owned_subject_matches_the_program() {
     assert_eq!(did.subject, subject);
     assert!(!did.is_key_subject());
     assert_eq!(did.to_string().parse::<BioDid>().unwrap(), did);
+}
+
+#[test]
+fn seeds_the_runtime_refuses_find_no_address() {
+    let long = [1u8; 33];
+    assert_eq!(try_find_program_address(&[&long], &PROGRAM_ID), None);
+    assert!(try_find_program_address(&[&long[..32]], &PROGRAM_ID).is_some());
+
+    // Sixteen seeds leave no room for the bump.
+    let seeds = [b"s".as_slice(); 16];
+    assert_eq!(try_find_program_address(&seeds, &PROGRAM_ID), None);
+    assert!(try_find_program_address(&seeds[..15], &PROGRAM_ID).is_some());
+}
+
+#[test]
+#[should_panic(expected = "Unable to find a viable program address bump seed")]
+fn find_program_address_panics_where_the_sdk_does() {
+    find_program_address(&[&[1u8; 33]], &PROGRAM_ID);
+}
+
+proptest::proptest! {
+    /// Random seeds and program IDs, including seeds the runtime refuses,
+    /// against the Solana SDK's own derivation.
+    #[test]
+    fn derivation_matches_the_sdk(
+        seeds in proptest::collection::vec(
+            proptest::prop_oneof![
+                9 => proptest::collection::vec(proptest::prelude::any::<u8>(), 0..=32),
+                1 => proptest::collection::vec(proptest::prelude::any::<u8>(), 33..=34),
+            ],
+            0..=17,
+        ),
+        program_id in proptest::prelude::any::<[u8; 32]>(),
+        registry in proptest::prelude::any::<bool>(),
+    ) {
+        let program_id = if registry { PROGRAM_ID } else { program_id };
+        let seeds: Vec<&[u8]> = seeds.iter().map(Vec::as_slice).collect();
+        let sdk = solana_address::Address::try_find_program_address(
+            &seeds,
+            &solana_address::Address::new_from_array(program_id),
+        )
+        .map(|(address, bump)| (address.to_bytes(), bump));
+        proptest::prop_assert_eq!(try_find_program_address(&seeds, &program_id), sdk);
+    }
 }

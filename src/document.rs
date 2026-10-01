@@ -6,18 +6,18 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 use crate::multikey::{self, KeyCodec};
 
-/// JSON-LD context: W3C DID v1.0 core.
+/// The JSON-LD context of W3C DID v1.0 core.
 pub const CONTEXT_DID_V1: &str = "https://www.w3.org/ns/did/v1";
-/// JSON-LD context: Controlled Identifiers v1.0 (defines `Multikey` and
-/// `JsonWebKey`).
+/// The JSON-LD context of Controlled Identifiers v1.0, which defines
+/// `Multikey` and `JsonWebKey`.
 pub const CONTEXT_CID_V1: &str = "https://www.w3.org/ns/cid/v1";
 
 /// Media type of the JSON-LD representation (DID 1.0).
 pub const MEDIA_TYPE_DID_LD_JSON: &str = "application/did+ld+json";
 /// Media type of the plain JSON representation (DID 1.0).
 pub const MEDIA_TYPE_DID_JSON: &str = "application/did+json";
-/// Media type registered by DID 1.1, replacing both of the above; carries
-/// the same JSON-LD serialization (spec Section 2).
+/// Media type registered by DID 1.1, replacing both of the above. It
+/// carries the same JSON-LD serialization (spec Section 2).
 pub const MEDIA_TYPE_DID: &str = "application/did";
 
 /// Verification method `type` for Multikey encoded keys.
@@ -25,8 +25,8 @@ pub const VM_TYPE_MULTIKEY: &str = "Multikey";
 /// Verification method `type` for JWK encoded keys (ML-DSA-87).
 pub const VM_TYPE_JSON_WEB_KEY: &str = "JsonWebKey";
 
-/// JWK `kty` for ML-DSA keys per draft-ietf-cose-dilithium (provisional,
-/// spec Section 5.2).
+/// JWK `kty` for ML-DSA keys per draft-ietf-cose-dilithium. It is
+/// provisional (spec Section 5.2).
 pub const JWK_KTY_AKP: &str = "AKP";
 /// JWK `alg` for ML-DSA-87 (FIPS 204).
 pub const JWK_ALG_ML_DSA_87: &str = "ML-DSA-87";
@@ -46,14 +46,14 @@ fn base64url(bytes: &[u8]) -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
 }
 
-/// An `AKP` public JWK carrying an ML-DSA public key
-/// (draft-ietf-cose-dilithium; provisional until IETF registration is
-/// final - spec Section 5.2).
+/// An `AKP` public JWK carrying an ML-DSA public key, per
+/// draft-ietf-cose-dilithium. It is provisional until IETF registration is
+/// final (spec Section 5.2).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AkpPublicJwk {
-    /// Key type; always `"AKP"`.
+    /// Key type, always `"AKP"`.
     pub kty: String,
-    /// Algorithm; `"ML-DSA-87"` for this method.
+    /// Algorithm, `"ML-DSA-87"` for this method.
     pub alg: String,
     /// Public key bytes, base64url without padding.
     #[serde(rename = "pub")]
@@ -85,22 +85,28 @@ impl AkpPublicJwk {
     }
 }
 
-/// The single verification material property of a verification method
-/// (spec Section 5.2: exactly one per method).
+/// The single verification material property of a verification method.
+/// Each method has exactly one (spec Section 5.2).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum VerificationMaterial {
-    /// `publicKeyMultibase` - Multikey encoded key material.
+    /// `publicKeyMultibase`, Multikey encoded key material.
     #[serde(rename = "publicKeyMultibase")]
     PublicKeyMultibase(String),
-    /// `publicKeyJwk` - JWK key material (ML-DSA-87).
+    /// `publicKeyJwk`, JWK key material for ML-DSA-87.
     #[serde(rename = "publicKeyJwk")]
     PublicKeyJwk(AkpPublicJwk),
 }
 
 /// A verification method map (spec Section 5.2).
+///
+/// Deserializing refuses a method with no verification material property
+/// or with more than one, so two readers of the same document never pick
+/// different keys.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "VerificationMethodFields")]
 pub struct VerificationMethodMap {
-    /// DID URL of this method: `<did>#<fragment>`.
+    /// DID URL of this method, `<did>#<fragment>`.
     pub id: String,
     /// `Multikey` or `JsonWebKey`.
     #[serde(rename = "type")]
@@ -110,6 +116,41 @@ pub struct VerificationMethodMap {
     /// The verification material property.
     #[serde(flatten)]
     pub material: VerificationMaterial,
+}
+
+/// A verification method map as it arrives, before the check that it has
+/// exactly one material property.
+#[derive(Deserialize)]
+struct VerificationMethodFields {
+    id: String,
+    #[serde(rename = "type")]
+    method_type: String,
+    controller: String,
+    #[serde(rename = "publicKeyMultibase")]
+    public_key_multibase: Option<String>,
+    #[serde(rename = "publicKeyJwk")]
+    public_key_jwk: Option<AkpPublicJwk>,
+}
+
+impl TryFrom<VerificationMethodFields> for VerificationMethodMap {
+    type Error = &'static str;
+
+    fn try_from(fields: VerificationMethodFields) -> Result<Self, Self::Error> {
+        let material = match (fields.public_key_multibase, fields.public_key_jwk) {
+            (Some(multibase), None) => VerificationMaterial::PublicKeyMultibase(multibase),
+            (None, Some(jwk)) => VerificationMaterial::PublicKeyJwk(jwk),
+            (None, None) => return Err("verification method has no verification material"),
+            (Some(_), Some(_)) => {
+                return Err("verification method has more than one verification material")
+            }
+        };
+        Ok(VerificationMethodMap {
+            id: fields.id,
+            method_type: fields.method_type,
+            controller: fields.controller,
+            material,
+        })
+    }
 }
 
 impl VerificationMethodMap {
@@ -138,7 +179,7 @@ impl VerificationMethodMap {
         })
     }
 
-    /// The fragment of this method's `id` (text after `#`), if any.
+    /// The fragment of this method's `id`, the text after `#`, if any.
     pub fn fragment(&self) -> Option<&str> {
         self.id.split_once('#').map(|(_, fragment)| fragment)
     }
@@ -156,9 +197,9 @@ impl VerificationMethodMap {
 /// A service map (spec Section 5.4).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServiceMap {
-    /// DID URL of this service: `<did>#<fragment>`.
+    /// DID URL of this service, `<did>#<fragment>`.
     pub id: String,
-    /// Service type, e.g. `BioMetadata`.
+    /// Service type, such as `BioMetadata`.
     #[serde(rename = "type")]
     pub service_type: String,
     /// Service endpoint URI.
@@ -169,8 +210,8 @@ pub struct ServiceMap {
 /// A `did:bio` DID document (spec Section 5).
 ///
 /// Field order matches the serialization shown in the spec. Empty arrays
-/// are omitted from serialization; a deactivated document (spec Section 5.7)
-/// therefore serializes as `{"@context": [...], "id": "<did>"}`.
+/// are omitted from serialization, so a deactivated document (spec
+/// Section 5.7) serializes as `{"@context": [...], "id": "<did>"}`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct DidDocument {
     /// JSON-LD contexts (spec Section 5.1).
@@ -188,31 +229,31 @@ pub struct DidDocument {
         default
     )]
     pub verification_method: Vec<VerificationMethodMap>,
-    /// `authentication` relationship (by reference).
+    /// `authentication` relationship, by reference.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub authentication: Vec<String>,
-    /// `assertionMethod` relationship (by reference).
+    /// `assertionMethod` relationship, by reference.
     #[serde(
         rename = "assertionMethod",
         skip_serializing_if = "Vec::is_empty",
         default
     )]
     pub assertion_method: Vec<String>,
-    /// `keyAgreement` relationship (by reference).
+    /// `keyAgreement` relationship, by reference.
     #[serde(
         rename = "keyAgreement",
         skip_serializing_if = "Vec::is_empty",
         default
     )]
     pub key_agreement: Vec<String>,
-    /// `capabilityInvocation` relationship (by reference).
+    /// `capabilityInvocation` relationship, by reference.
     #[serde(
         rename = "capabilityInvocation",
         skip_serializing_if = "Vec::is_empty",
         default
     )]
     pub capability_invocation: Vec<String>,
-    /// `capabilityDelegation` relationship (by reference).
+    /// `capabilityDelegation` relationship, by reference.
     #[serde(
         rename = "capabilityDelegation",
         skip_serializing_if = "Vec::is_empty",
@@ -256,7 +297,7 @@ impl DidDocument {
         self.verification_method.iter().find(|vm| vm.id == id)
     }
 
-    /// Find a verification method by bare fragment (without `#`).
+    /// Find a verification method by bare fragment, without `#`.
     pub fn verification_method_by_fragment(
         &self,
         fragment: &str,
@@ -266,12 +307,40 @@ impl DidDocument {
             .find(|vm| vm.fragment() == Some(fragment))
     }
 
-    /// Find a service by bare fragment (without `#`).
+    /// Find a service by bare fragment, without `#`.
     pub fn service_by_fragment(&self, fragment: &str) -> Option<&ServiceMap> {
         self.service
             .iter()
             .find(|s| s.id.split_once('#').map(|(_, f)| f) == Some(fragment))
     }
+
+    /// What a DID URL with this `fragment` names in the document, or the
+    /// document itself without a fragment. Fragments are unique across
+    /// methods and services (spec Section 5.4), so at most one matches.
+    pub fn dereference(&self, fragment: Option<&str>) -> Option<Dereferenced<'_>> {
+        match fragment {
+            None => Some(Dereferenced::Document(self)),
+            Some(fragment) => self
+                .verification_method_by_fragment(fragment)
+                .map(Dereferenced::VerificationMethod)
+                .or_else(|| {
+                    self.service_by_fragment(fragment)
+                        .map(Dereferenced::Service)
+                }),
+        }
+    }
+}
+
+/// What a DID URL names. It serializes as the resource itself.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[serde(untagged)]
+pub enum Dereferenced<'a> {
+    /// The whole document, for a DID URL without a fragment.
+    Document(&'a DidDocument),
+    /// A verification method.
+    VerificationMethod(&'a VerificationMethodMap),
+    /// A service.
+    Service(&'a ServiceMap),
 }
 
 /// `didDocumentMetadata` (spec Section 6.2).
@@ -283,19 +352,19 @@ pub struct DidDocumentMetadata {
     /// Whether the DID is permanently deactivated (spec Section 5.7).
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub deactivated: Option<bool>,
-    /// The registry `version` counter as a decimal string; `"0"` for a
+    /// The registry `version` counter as a decimal string, `"0"` for a
     /// generative document.
     #[serde(rename = "versionId", skip_serializing_if = "Option::is_none", default)]
     pub version_id: Option<String>,
-    /// XML datetime of the last registry update; absent for generative
+    /// XML datetime of the last registry update, absent for generative
     /// documents.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub updated: Option<String>,
 }
 
 impl DidDocumentMetadata {
-    /// Metadata of a generative document: `versionId "0"`, not deactivated
-    /// (spec Section 6.2 step 6).
+    /// Metadata of a generative document, with `versionId "0"` and not
+    /// deactivated (spec Section 6.2 step 6).
     pub fn generative() -> Self {
         DidDocumentMetadata {
             deactivated: Some(false),
@@ -330,17 +399,17 @@ pub struct DidResolutionMetadata {
     pub error: Option<String>,
 }
 
-/// A complete DID Resolution result: resolution metadata, document, and
-/// document metadata.
+/// A complete DID Resolution result, made of the resolution metadata, the
+/// document and the document metadata.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DidResolution {
     /// Metadata about the resolution process.
     #[serde(rename = "didResolutionMetadata")]
     pub resolution_metadata: DidResolutionMetadata,
-    /// The resolved document; `null` on failure.
+    /// The resolved document, `null` on failure.
     #[serde(rename = "didDocument")]
     pub document: Option<DidDocument>,
-    /// Metadata about the document; the empty structure on failure.
+    /// Metadata about the document, the empty structure on failure.
     #[serde(rename = "didDocumentMetadata")]
     pub document_metadata: DidDocumentMetadata,
 }
@@ -358,8 +427,8 @@ impl DidResolution {
         }
     }
 
-    /// A failed resolution carrying a DID Resolution error code (e.g.
-    /// [`crate::resolution_error::INVALID_DID`]).
+    /// A failed resolution carrying a DID Resolution error code, such as
+    /// [`crate::resolution_error::INVALID_DID`].
     pub fn error(code: &str) -> Self {
         DidResolution {
             resolution_metadata: DidResolutionMetadata {

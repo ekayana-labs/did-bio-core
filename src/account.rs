@@ -1,8 +1,9 @@
-//! The `bio-did-registry` on chain account model (spec Section 5, Section 6) and a
-//! dependency free decoder for its Borsh account format.
+//! The `bio-did-registry` on chain account model (spec Section 5, Section 6)
+//! and a dependency free decoder for its Borsh account format.
 //!
 //! Constants here mirror the registry program, which is the source of
-//! truth; parity is enforced by tests in the registry repository.
+//! truth. The parity tests in the resolver repository check them against
+//! the program crate.
 
 use crate::error::Error;
 
@@ -15,18 +16,20 @@ pub const PROGRAM_ID: [u8; 32] = [
     34, 110, 199, 209, 203, 31, 235, 20, 60, 254, 180, 65,
 ];
 
-/// PDA seed prefix for DID accounts: `["bio-did", subject]` (spec Section 4.4).
+/// PDA seed prefix for DID accounts, whose seeds are `["bio-did", subject]`
+/// (spec Section 4.4).
 pub const DID_SEED: &[u8] = b"bio-did";
 
-/// Seed prefix of an owned subject, derived by `initialize_owned` from its
-/// authority: `find_program_address(["bio-did-owned", authority, nonce_le])`
+/// Seed prefix of an owned subject, which `initialize_owned` derives from
+/// its authority as
+/// `find_program_address(["bio-did-owned", authority, nonce_le])`
 /// (spec Section 4.2).
 pub const OWNED_SUBJECT_SEED: &[u8] = b"bio-did-owned";
 
 /// Reserved fragment of the subject key's verification method (spec Section 5.6).
 pub const DEFAULT_FRAGMENT: &str = "default";
 
-/// Account discriminator: `sha256("account:DidAccount")[..8]`
+/// Account discriminator, `sha256("account:DidAccount")[..8]`
 /// (spec Section 6.2 step 7).
 pub const ACCOUNT_DISCRIMINATOR: [u8; 8] = [77, 88, 239, 141, 251, 29, 237, 243];
 
@@ -46,18 +49,18 @@ pub const MAX_SERVICE_TYPE_LEN: usize = 64;
 pub const MAX_ENDPOINT_LEN: usize = 512;
 /// Maximum external controller DID string length (spec Section 6.3).
 pub const MAX_CONTROLLER_LEN: usize = 128;
-/// Maximum verification key material size (fits ML-DSA-87).
+/// Maximum verification key material size, which fits ML-DSA-87.
 pub const MAX_KEY_DATA_LEN: usize = 2592;
 
-/// PDA seed prefix for key buffers:
+/// PDA seed prefix for key buffers, whose seeds are
 /// `["bio-did-key", did_account, authority]` (spec Section 6.3).
 pub const KEY_BUFFER_SEED: &[u8] = b"bio-did-key";
 
-/// Key buffer discriminator: `sha256("account:KeyBuffer")[..8]`
+/// Key buffer discriminator, `sha256("account:KeyBuffer")[..8]`
 /// (spec Section 6.3).
 pub const KEY_BUFFER_DISCRIMINATOR: [u8; 8] = [150, 138, 44, 35, 255, 159, 45, 0];
 
-/// Size of a key buffer's fixed header; the key bytes follow it.
+/// Size of a key buffer's fixed header. The key bytes follow it.
 pub const KEY_BUFFER_HEADER_LEN: usize = 8 + 32 + 32 + 1 + 1 + 2 + 4 + 4 + 4 + MAX_FRAGMENT_LEN;
 
 /// Verification method flag bits (spec Section 5.3).
@@ -68,13 +71,13 @@ pub mod vm_flags {
     pub const ASSERTION: u16 = 1 << 1;
     /// Listed in `keyAgreement`.
     pub const KEY_AGREEMENT: u16 = 1 << 2;
-    /// Listed in `capabilityInvocation`; grants on chain update authority
-    /// (Ed25519 methods only).
+    /// Listed in `capabilityInvocation`. It grants on chain update
+    /// authority, on Ed25519 methods only.
     pub const CAPABILITY_INVOCATION: u16 = 1 << 3;
     /// Listed in `capabilityDelegation`.
     pub const CAPABILITY_DELEGATION: u16 = 1 << 4;
-    /// Method internal: only the method's own key may add it, change its
-    /// flags, or remove it. Not expressed in the DID document.
+    /// Internal to the method. Only the method's own key may add it, change
+    /// its flags, or remove it. It is not expressed in the DID document.
     pub const PROTECTED: u16 = 1 << 8;
 
     /// The five W3C verification relationship bits.
@@ -82,8 +85,8 @@ pub mod vm_flags {
         AUTHENTICATION | ASSERTION | KEY_AGREEMENT | CAPABILITY_INVOCATION | CAPABILITY_DELEGATION;
     /// Every bit the registry accepts.
     pub const VALID_MASK: u16 = RELATIONSHIP_MASK | PROTECTED;
-    /// Flags of the subject's initial `#default` method: all five
-    /// relationships, protected.
+    /// Flags of the subject's initial `#default` method, which holds all
+    /// five relationships and is protected.
     pub const DEFAULT: u16 = RELATIONSHIP_MASK | PROTECTED;
 }
 
@@ -92,17 +95,22 @@ pub mod vm_flags {
 /// Discriminant values are the on chain Borsh enum tags.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum KeyType {
-    /// 32 byte Ed25519 public key -> `Multikey` (`z6Mk...`).
+    /// A 32 byte Ed25519 public key, materialized as a `Multikey`
+    /// (`z6Mk...`).
     Ed25519 = 0,
-    /// 32 byte X25519 key agreement key -> `Multikey` (`z6LS...`).
+    /// A 32 byte X25519 key agreement key, materialized as a `Multikey`
+    /// (`z6LS...`).
     X25519 = 1,
-    /// 33 byte compressed secp256k1 key -> `Multikey` (`zQ3s...`).
+    /// A 33 byte compressed secp256k1 key, materialized as a `Multikey`
+    /// (`zQ3s...`).
     Secp256k1 = 2,
-    /// 2592 byte ML-DSA-87 (FIPS 204) public key -> `JsonWebKey`.
+    /// A 2592 byte ML-DSA-87 (FIPS 204) public key, materialized as a
+    /// `JsonWebKey`.
     ///
-    /// Stored on chain under the legacy name `Dilithium5` (the parameter
-    /// set ML-DSA-87 derives from). Final ML-DSA-87 is **not**
+    /// It is stored on chain under the legacy name `Dilithium5`, the
+    /// parameter set ML-DSA-87 derives from. Final ML-DSA-87 is not
     /// interoperable with the earlier round 3 Dilithium5.
     MlDsa87 = 3,
 }
@@ -147,7 +155,7 @@ impl KeyType {
         }
     }
 
-    /// The Multikey codec for this key type; `None` for ML-DSA-87, which
+    /// The Multikey codec for this key type, or `None` for ML-DSA-87, which
     /// uses a JWK.
     pub const fn key_codec(self) -> Option<crate::multikey::KeyCodec> {
         match self {
@@ -168,7 +176,7 @@ pub struct StoredVerificationMethod {
     pub method_type: KeyType,
     /// Bitwise OR of [`vm_flags`] values.
     pub flags: u16,
-    /// Raw public key bytes; length matches `method_type`.
+    /// Raw public key bytes, whose length matches `method_type`.
     pub key_data: Vec<u8>,
 }
 
@@ -184,7 +192,7 @@ impl StoredVerificationMethod {
 pub struct StoredService {
     /// Fragment identifier without the leading `#`.
     pub fragment: String,
-    /// Service type, e.g. `BioMetadata`.
+    /// Service type, such as `BioMetadata`.
     pub service_type: String,
     /// Service endpoint URI.
     pub endpoint: String,
@@ -195,13 +203,13 @@ pub struct StoredService {
 /// Mirrors the on chain `DidAccount` struct of the registry program.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DidAccountState {
-    /// Monotonic update counter; reported as `versionId`.
+    /// Monotonic update counter, reported as `versionId`.
     pub version: u64,
     /// PDA bump seed.
     pub bump: u8,
-    /// The Ed25519 subject key (the DID's method specific id).
+    /// The subject, which is the DID's method specific id.
     pub subject: [u8; 32],
-    /// True once permanently deactivated (tombstone, spec Section 6.4).
+    /// True once permanently deactivated into a tombstone (spec Section 6.4).
     pub deactivated: bool,
     /// Unix timestamp of the last update.
     pub updated_at: i64,
@@ -216,9 +224,10 @@ pub struct DidAccountState {
 }
 
 impl DidAccountState {
-    /// The generative default state for a subject key: exactly what
-    /// `initialize` writes on chain, except `version` is 0 (spec Section 5.6,
-    /// Section 6.1). Used to materialize the generative document.
+    /// The generative default state for a subject key. It is exactly what
+    /// `initialize` writes on chain, except that `version` is 0 (spec
+    /// Section 5.6, Section 6.1). It is used to materialize the generative
+    /// document.
     pub fn generative(subject: [u8; 32]) -> Self {
         DidAccountState {
             version: 0,
@@ -238,10 +247,15 @@ impl DidAccountState {
         }
     }
 
-    /// Decode registry account data: verify the 8 byte discriminator, then
-    /// read the Borsh encoded state (spec Section 6.2 step 7).
+    /// Decode registry account data by verifying the 8 byte discriminator
+    /// and then reading the Borsh encoded state (spec Section 6.2 step 7).
     ///
-    /// Trailing bytes after the state are ignored.
+    /// The decoding is strict. It refuses anything the registry never
+    /// writes, such as bytes past the state, an invalid fragment, unknown
+    /// flag bits or flags the key type cannot carry, a key whose length
+    /// does not match its type, a service
+    /// value or external controller outside its form, a fragment used twice,
+    /// or entries left in a deactivated tombstone.
     pub fn from_account_data(data: &[u8]) -> Result<Self, Error> {
         if data.len() < ACCOUNT_DISCRIMINATOR.len() {
             return Err(Error::InvalidAccountData("shorter than the discriminator"));
@@ -257,17 +271,64 @@ impl DidAccountState {
             subject: cursor.read_array32()?,
             deactivated: cursor.read_bool()?,
             updated_at: cursor.read_i64()?,
-            native_controllers: cursor.read_vec(Cursor::read_array32)?,
-            other_controllers: cursor.read_vec(Cursor::read_string)?,
-            verification_methods: cursor.read_vec(Cursor::read_verification_method)?,
-            services: cursor.read_vec(Cursor::read_service)?,
+            native_controllers: cursor.read_vec(
+                MAX_NATIVE_CONTROLLERS,
+                "more native controllers than the registry allows",
+                Cursor::read_array32,
+            )?,
+            other_controllers: cursor.read_vec(
+                MAX_OTHER_CONTROLLERS,
+                "more external controllers than the registry allows",
+                Cursor::read_external_controller,
+            )?,
+            verification_methods: cursor.read_vec(
+                MAX_VERIFICATION_METHODS,
+                "more verification methods than the registry allows",
+                Cursor::read_verification_method,
+            )?,
+            services: cursor.read_vec(
+                MAX_SERVICES,
+                "more services than the registry allows",
+                Cursor::read_service,
+            )?,
         };
+        if cursor.remaining() != 0 {
+            return Err(Error::InvalidAccountData(
+                "trailing bytes after the account state",
+            ));
+        }
+        state.check()?;
         Ok(state)
     }
 
-    /// True when `key` may authorize updates: it matches an Ed25519 method
-    /// carrying `CAPABILITY_INVOCATION`, and the DID is not deactivated
-    /// (spec Section 6 Authorization).
+    /// The rules of a whole document that no single field can check.
+    fn check(&self) -> Result<(), Error> {
+        let fragments = self
+            .verification_methods
+            .iter()
+            .map(|vm| &vm.fragment)
+            .chain(self.services.iter().map(|s| &s.fragment));
+        for (i, fragment) in fragments.clone().enumerate() {
+            if fragments.clone().take(i).any(|seen| seen == fragment) {
+                return Err(Error::InvalidAccountData("fragment used twice"));
+            }
+        }
+        if self.deactivated
+            && !(self.native_controllers.is_empty()
+                && self.other_controllers.is_empty()
+                && self.verification_methods.is_empty()
+                && self.services.is_empty())
+        {
+            return Err(Error::InvalidAccountData(
+                "deactivated account holds entries",
+            ));
+        }
+        Ok(())
+    }
+
+    /// True when `key` may authorize updates. It must match an Ed25519
+    /// method carrying `CAPABILITY_INVOCATION`, and the DID must not be
+    /// deactivated (spec Section 6 Authorization).
     pub fn is_authority(&self, key: &[u8; 32]) -> bool {
         !self.deactivated
             && self.verification_methods.iter().any(|vm| {
@@ -277,8 +338,8 @@ impl DidAccountState {
             })
     }
 
-    /// Number of Ed25519 methods holding `CAPABILITY_INVOCATION` (the
-    /// last authority invariant counts these, spec Section 6).
+    /// Number of Ed25519 methods holding `CAPABILITY_INVOCATION`, which the
+    /// last authority invariant counts (spec Section 6).
     pub fn authority_count(&self) -> usize {
         self.verification_methods
             .iter()
@@ -301,9 +362,10 @@ impl DidAccountState {
     }
 }
 
-/// Deserialized state of a `KeyBuffer` staging account: a verification
-/// method whose key is too large for one transaction and arrives in chunks
-/// (spec Section 6.3). Clients read it to resume an interrupted upload.
+/// Deserialized state of a `KeyBuffer` staging account. It holds a
+/// verification method whose key is too large for one transaction and
+/// arrives in chunks (spec Section 6.3). Clients read it to resume an
+/// interrupted upload.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyBufferState {
     /// The DID account the pending method is destined for.
@@ -314,7 +376,7 @@ pub struct KeyBufferState {
     pub bump: u8,
     /// Key algorithm of the pending method.
     pub method_type: KeyType,
-    /// Flags of the pending method; bitwise OR of [`vm_flags`] values.
+    /// Flags of the pending method, a bitwise OR of [`vm_flags`] values.
     pub flags: u16,
     /// Total key length, fixed when the buffer was opened.
     pub key_len: usize,
@@ -325,8 +387,9 @@ pub struct KeyBufferState {
 }
 
 impl KeyBufferState {
-    /// Decode key buffer account data: verify the 8 byte discriminator,
-    /// then read the fixed header and the bytes written so far.
+    /// Decode key buffer account data by verifying the 8 byte
+    /// discriminator, then reading the fixed header and the bytes written
+    /// so far.
     pub fn from_account_data(data: &[u8]) -> Result<Self, Error> {
         if data.len() < KEY_BUFFER_HEADER_LEN {
             return Err(Error::InvalidAccountData(
@@ -357,8 +420,12 @@ impl KeyBufferState {
         }
         let fragment = String::from_utf8(cursor.take(fragment_len)?.to_vec())
             .map_err(|_| Error::InvalidAccountData("fragment is not valid UTF-8"))?;
+        if !crate::did::is_valid_fragment(&fragment) {
+            return Err(Error::InvalidAccountData("fragment is not valid"));
+        }
+        check_flags(method_type, flags)?;
         let key = &data[KEY_BUFFER_HEADER_LEN..];
-        if key.len() != key_len || written > key_len {
+        if key.len() != key_len || written > key_len || key_len != method_type.expected_key_len() {
             return Err(Error::InvalidAccountData(
                 "key buffer length does not match its header",
             ));
@@ -384,6 +451,30 @@ impl KeyBufferState {
     pub fn is_complete(&self) -> bool {
         self.key_data.len() == self.key_len
     }
+}
+
+/// The flag rules every version of the registry has enforced. Only known
+/// bits are set, `CAPABILITY_INVOCATION` is on Ed25519 methods only, and an
+/// X25519 method takes no relationship other than `KEY_AGREEMENT`.
+fn check_flags(method_type: KeyType, flags: u16) -> Result<(), Error> {
+    if flags & !vm_flags::VALID_MASK != 0 {
+        return Err(Error::InvalidAccountData(
+            "unknown verification method flag bits",
+        ));
+    }
+    if flags & vm_flags::CAPABILITY_INVOCATION != 0 && method_type != KeyType::Ed25519 {
+        return Err(Error::InvalidAccountData(
+            "capabilityInvocation on a method that is not Ed25519",
+        ));
+    }
+    if method_type == KeyType::X25519
+        && flags & vm_flags::RELATIONSHIP_MASK & !vm_flags::KEY_AGREEMENT != 0
+    {
+        return Err(Error::InvalidAccountData(
+            "X25519 method outside keyAgreement",
+        ));
+    }
+    Ok(())
 }
 
 /// Minimal Borsh reader over the account body. Every length prefix is
@@ -463,13 +554,19 @@ impl<'a> Cursor<'a> {
             .map_err(|_| Error::InvalidAccountData("string is not valid UTF-8"))
     }
 
+    /// A vector of at most `max` elements, the registry's limit for it. The
+    /// count is checked before anything is allocated, so a hostile prefix
+    /// cannot make the decoder reserve more than the limit.
     fn read_vec<T>(
         &mut self,
+        max: usize,
+        too_many: &'static str,
         mut read_element: impl FnMut(&mut Self) -> Result<T, Error>,
     ) -> Result<Vec<T>, Error> {
-        // Minimum element size 1 keeps the bound conservative for
-        // variable size elements.
         let len = self.read_len(1)?;
+        if len > max {
+            return Err(Error::InvalidAccountData(too_many));
+        }
         let mut out = Vec::with_capacity(len);
         for _ in 0..len {
             out.push(read_element(self)?);
@@ -477,22 +574,63 @@ impl<'a> Cursor<'a> {
         Ok(out)
     }
 
+    fn read_fragment(&mut self) -> Result<String, Error> {
+        let fragment = self.read_string()?;
+        if !crate::did::is_valid_fragment(&fragment) {
+            return Err(Error::InvalidAccountData("fragment is not valid"));
+        }
+        Ok(fragment)
+    }
+
+    /// A string of printable ASCII without whitespace, of at most `max`
+    /// bytes, the form of service values and external controllers.
+    fn read_printable(&mut self, max: usize, what: &'static str) -> Result<String, Error> {
+        let value = self.read_string()?;
+        if value.is_empty() || value.len() > max || !value.bytes().all(|b| b.is_ascii_graphic()) {
+            return Err(Error::InvalidAccountData(what));
+        }
+        Ok(value)
+    }
+
+    fn read_external_controller(&mut self) -> Result<String, Error> {
+        let value = self.read_printable(
+            MAX_CONTROLLER_LEN,
+            "external controller is not a DID of another method",
+        )?;
+        if !value.starts_with("did:") || value.starts_with("did:bio:") {
+            return Err(Error::InvalidAccountData(
+                "external controller is not a DID of another method",
+            ));
+        }
+        Ok(value)
+    }
+
     fn read_verification_method(&mut self) -> Result<StoredVerificationMethod, Error> {
+        let fragment = self.read_fragment()?;
+        let method_type = KeyType::from_tag(self.read_u8()?).ok_or(Error::InvalidAccountData(
+            "unknown verification method type tag",
+        ))?;
+        let flags = self.read_u16()?;
+        check_flags(method_type, flags)?;
+        let key_data = self.read_byte_vec()?;
+        if key_data.len() != method_type.expected_key_len() {
+            return Err(Error::InvalidAccountData(
+                "key length does not match its type",
+            ));
+        }
         Ok(StoredVerificationMethod {
-            fragment: self.read_string()?,
-            method_type: KeyType::from_tag(self.read_u8()?).ok_or(Error::InvalidAccountData(
-                "unknown verification method type tag",
-            ))?,
-            flags: self.read_u16()?,
-            key_data: self.read_byte_vec()?,
+            fragment,
+            method_type,
+            flags,
+            key_data,
         })
     }
 
     fn read_service(&mut self) -> Result<StoredService, Error> {
         Ok(StoredService {
-            fragment: self.read_string()?,
-            service_type: self.read_string()?,
-            endpoint: self.read_string()?,
+            fragment: self.read_fragment()?,
+            service_type: self.read_printable(MAX_SERVICE_TYPE_LEN, "service type is not valid")?,
+            endpoint: self.read_printable(MAX_ENDPOINT_LEN, "service endpoint is not valid")?,
         })
     }
 }

@@ -1,30 +1,32 @@
 //! The `did:bio` resolution algorithm (spec Section 6.2), decoupled from any
 //! transport.
 //!
-//! The heart of this module is [`resolve_from_account`], a pure function
+//! The core of this module is [`resolve_from_account`], a pure function
 //! from a parsed DID plus an optional fetched account to a complete
-//! [`DidResolution`]. Steps 1-5 of the algorithm (parse, cluster selection,
-//! PDA derivation, account fetch) happen in the caller or in the
-//! [`RegistryReader`] drivers; steps 6-9 (ownership and discriminator
-//! checks, generative fallback, materialization, metadata) happen here.
+//! [`DidResolution`]. Steps 1-5 of the algorithm parse the DID, select the
+//! cluster, derive the PDA and fetch the account. They happen in the caller
+//! or in the [`RegistryReader`] drivers. Steps 6-9 check ownership and the
+//! discriminator, apply the generative fallback, materialize the document
+//! and build the metadata. They happen here.
 //!
-//! **Transport errors are not "not found".** Spec Section 6.2 permits the
-//! generative fallback only for a genuinely absent account. A fetcher MUST
-//! surface RPC failures as errors ([`RegistryReader::fetch_account`]
-//! returning `Err`), never as `Ok(None)` - otherwise an unreachable or
-//! malicious RPC node silently resurrects rotated out or deactivated keys
-//! (the withholding attack, spec Section 7).
+//! A transport error is never a missing account. Spec Section 6.2 permits
+//! the generative fallback only for an account that is really absent. A
+//! fetcher MUST surface RPC failures as errors, with
+//! [`RegistryReader::fetch_account`] returning `Err`, and never as
+//! `Ok(None)`. Otherwise an unreachable or malicious RPC node silently
+//! resurrects rotated out or deactivated keys, which is the withholding
+//! attack of spec Section 7.
 
 use crate::account::{vm_flags, DidAccountState, StoredVerificationMethod, PROGRAM_ID};
 use crate::did::BioDid;
 use crate::document::{
-    default_context, DidDocument, DidDocumentMetadata, DidResolution, ServiceMap,
+    default_context, Dereferenced, DidDocument, DidDocumentMetadata, DidResolution, ServiceMap,
     VerificationMethodMap,
 };
 use crate::error::{resolution_error, Error};
 
-/// A registry account as fetched from a Solana RPC node: its owner program
-/// and raw data.
+/// A registry account as fetched from a Solana RPC node, with its owner
+/// program and raw data.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RawAccount {
     /// The program that owns the account.
@@ -49,9 +51,10 @@ pub fn verification_method_map(
 
 /// Materialize a DID document from registry state (spec Section 5).
 ///
-/// The document's identifiers are derived from `did` - including its
-/// network segment - so the same state materializes differently for
-/// `did:bio:devnet:...` and `did:bio:...` (distinct DIDs by spec Section 4.2).
+/// The document's identifiers are derived from `did`, including its
+/// network segment, so the same state materializes differently for
+/// `did:bio:devnet:...` and `did:bio:...`, which are distinct DIDs (spec
+/// Section 4.2).
 pub fn materialize_document(did: &BioDid, state: &DidAccountState) -> Result<DidDocument, Error> {
     let did_string = did.to_string();
 
@@ -105,9 +108,9 @@ pub fn materialize_document(did: &BioDid, state: &DidAccountState) -> Result<Did
 }
 
 /// The generative DID document for a key subject with no registry entry
-/// (spec Section 5.6): the subject key as a protected `#default` method
-/// carrying all five verification relationships. `None` for an owned
-/// subject, which has no key and therefore no generative document.
+/// (spec Section 5.6). It holds the subject key as a protected `#default`
+/// method carrying all five verification relationships. Returns `None` for
+/// an owned subject, which has no key and therefore no generative document.
 pub fn generative_document(did: &BioDid) -> Option<DidDocument> {
     if !did.is_key_subject() {
         return None;
@@ -127,16 +130,16 @@ pub fn deactivated_document(did: &BioDid) -> DidDocument {
     }
 }
 
-/// Steps 6-9 of the resolution algorithm (spec Section 6.2): decide between the
-/// generative fallback, the deactivated document, and full
+/// Steps 6-9 of the resolution algorithm (spec Section 6.2), which decide
+/// between the generative fallback, the deactivated document, and full
 /// materialization.
 ///
 /// `account` is the result of fetching the DID's PDA
-/// ([`crate::pda::find_did_account_address`]): `None` when no account
+/// ([`crate::pda::find_did_account_address`]), and `None` when no account
 /// exists. An account that is empty or not owned by the registry program
-/// counts as absent (step 6): a key subject then resolves generatively,
-/// an owned subject to `notFound`. Undecodable account data yields an
-/// `internalError` resolution, never a fallback.
+/// counts as absent (step 6). A key subject then resolves generatively and
+/// an owned subject resolves to `notFound`. Undecodable account data
+/// yields an `internalError` resolution and never a fallback.
 pub fn resolve_from_account(did: &BioDid, account: Option<&RawAccount>) -> DidResolution {
     let account = match account {
         Some(account) if account.owner == PROGRAM_ID && !account.data.is_empty() => account,
@@ -155,8 +158,8 @@ pub fn resolve_from_account(did: &BioDid, account: Option<&RawAccount>) -> DidRe
         Err(_) => return DidResolution::error(resolution_error::INTERNAL_ERROR),
     };
 
-    // Defensive: the account at the DID's PDA must be about this subject.
-    // A mismatch means the caller fetched the wrong address.
+    // The account at the DID's PDA must be about this subject. A mismatch
+    // means the caller fetched the wrong address.
     if state.subject != did.subject {
         return DidResolution::error(resolution_error::INTERNAL_ERROR);
     }
@@ -177,9 +180,29 @@ pub fn resolve_from_account(did: &BioDid, account: Option<&RawAccount>) -> DidRe
     }
 }
 
-/// Resolve a DID string against an already fetched account: step 1
-/// (syntax validation) plus [`resolve_from_account`]. An invalid DID
-/// yields an `invalidDid` error resolution (never a panic).
+/// Dereference the `fragment` of a DID URL against the resolution of its
+/// DID. Returns what the URL names, or a DID Resolution error code, which is
+/// the resolution's own error when it failed and `notFound` when the
+/// fragment names nothing in the document.
+pub fn dereference<'a>(
+    resolution: &'a DidResolution,
+    fragment: Option<&str>,
+) -> Result<Dereferenced<'a>, &'a str> {
+    let document = resolution.document.as_ref().ok_or(
+        resolution
+            .resolution_metadata
+            .error
+            .as_deref()
+            .unwrap_or(resolution_error::INTERNAL_ERROR),
+    )?;
+    document
+        .dereference(fragment)
+        .ok_or(resolution_error::NOT_FOUND)
+}
+
+/// Resolve a DID string against an already fetched account. This is step
+/// 1, syntax validation, followed by [`resolve_from_account`]. An invalid
+/// DID yields an `invalidDid` error resolution and never a panic.
 pub fn resolve_str(did: &str, account: Option<&RawAccount>) -> DidResolution {
     match BioDid::parse(did) {
         Ok(did) => resolve_from_account(&did, account),
@@ -215,8 +238,35 @@ pub trait AsyncRegistryReader {
     ) -> impl core::future::Future<Output = Result<Option<RawAccount>, Self::Error>> + Send;
 }
 
-/// Full resolution via a synchronous fetcher: derive the PDA, fetch, and
-/// run [`resolve_from_account`]. Transport errors propagate as `Err`.
+/// An asynchronous registry account fetcher whose futures need not be
+/// `Send`, for single threaded runtimes such as a browser. Same contract as
+/// [`RegistryReader`]. Every [`AsyncRegistryReader`] is one.
+pub trait LocalAsyncRegistryReader {
+    /// Transport error type.
+    type Error;
+
+    /// Fetch the account at `address` (a PDA), or `None` if it does not
+    /// exist.
+    fn fetch_account(
+        &self,
+        address: &[u8; 32],
+    ) -> impl core::future::Future<Output = Result<Option<RawAccount>, Self::Error>>;
+}
+
+impl<R: AsyncRegistryReader> LocalAsyncRegistryReader for R {
+    type Error = R::Error;
+
+    fn fetch_account(
+        &self,
+        address: &[u8; 32],
+    ) -> impl core::future::Future<Output = Result<Option<RawAccount>, Self::Error>> {
+        AsyncRegistryReader::fetch_account(self, address)
+    }
+}
+
+/// Full resolution via a synchronous fetcher. It derives the PDA, fetches
+/// the account and runs [`resolve_from_account`]. Transport errors
+/// propagate as `Err`.
 #[cfg(feature = "pda")]
 pub fn resolve_with<R: RegistryReader>(
     reader: &R,
@@ -235,6 +285,18 @@ pub async fn resolve_with_async<R: AsyncRegistryReader>(
     did: &BioDid,
 ) -> Result<DidResolution, R::Error> {
     let (address, _bump) = crate::pda::find_did_account_address(&did.subject);
-    let account = reader.fetch_account(&address).await?;
+    let account = AsyncRegistryReader::fetch_account(reader, &address).await?;
+    Ok(resolve_from_account(did, account.as_ref()))
+}
+
+/// Full resolution via a fetcher whose futures need not be `Send`.
+/// Transport errors propagate as `Err`.
+#[cfg(feature = "pda")]
+pub async fn resolve_with_async_local<R: LocalAsyncRegistryReader>(
+    reader: &R,
+    did: &BioDid,
+) -> Result<DidResolution, R::Error> {
+    let (address, _bump) = crate::pda::find_did_account_address(&did.subject);
+    let account = LocalAsyncRegistryReader::fetch_account(reader, &address).await?;
     Ok(resolve_from_account(did, account.as_ref()))
 }

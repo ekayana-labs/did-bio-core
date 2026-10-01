@@ -18,7 +18,7 @@ fn parses_all_network_forms() {
         let did = BioDid::parse(&format!("did:bio:{segment}:{EXAMPLE_IDSTRING}")).unwrap();
         assert_eq!(did.network, network);
         assert_eq!(did.subject, mainnet.subject);
-        // Section 4.2: DIDs differing only in network are distinct DIDs.
+        // DIDs differing only in network are distinct DIDs (Section 4.2).
         assert_ne!(did.to_string(), mainnet.to_string());
     }
 }
@@ -29,7 +29,7 @@ fn display_roundtrips() {
         format!("did:bio:{EXAMPLE_IDSTRING}"),
         EXAMPLE_DID.to_string(),
         format!("did:bio:localnet:{EXAMPLE_IDSTRING}"),
-        // 32 ones decode to 32 zero bytes: minimum length idstring.
+        // 32 ones decode to 32 zero bytes, the minimum length idstring.
         format!("did:bio:{}", "1".repeat(32)),
     ] {
         assert_eq!(BioDid::parse(&did).unwrap().to_string(), did);
@@ -45,7 +45,7 @@ fn rejects_invalid_dids() {
         format!("did:biox:{EXAMPLE_IDSTRING}"),
         "did:bio".to_string(),
         "did:bio:".to_string(),
-        // network violations (Section 4.1: only devnet/testnet/localnet)
+        // network violations (Section 4.1 allows devnet, testnet and localnet)
         format!("did:bio:mainnet:{EXAMPLE_IDSTRING}"),
         format!("did:bio:Devnet:{EXAMPLE_IDSTRING}"),
         format!("did:bio:goerli:{EXAMPLE_IDSTRING}"),

@@ -44,6 +44,33 @@ fn generative_document_matches_spec_verbatim() {
 }
 
 #[test]
+fn verification_methods_carry_exactly_one_material() {
+    use did_bio_core::document::{DidDocument, VerificationMaterial, VerificationMethodMap};
+
+    let parsed: DidDocument = serde_json::from_str(SPEC_GENERATIVE_DOCUMENT).unwrap();
+    assert_eq!(Some(parsed), generative_document(&example_did()));
+
+    let method = |material: &str| {
+        serde_json::from_str::<VerificationMethodMap>(&format!(
+            r#"{{"id":"did:bio:x#k","type":"Multikey","controller":"did:bio:x"{material}}}"#
+        ))
+    };
+    let multibase = r#","publicKeyMultibase":"z6Mk""#;
+    let jwk = r#","publicKeyJwk":{"kty":"AKP","alg":"ML-DSA-87","pub":"AA"}"#;
+    assert!(matches!(
+        method(multibase).unwrap().material,
+        VerificationMaterial::PublicKeyMultibase(_)
+    ));
+    assert!(matches!(
+        method(jwk).unwrap().material,
+        VerificationMaterial::PublicKeyJwk(_)
+    ));
+    assert!(method("").is_err());
+    assert!(method(&format!("{multibase}{jwk}")).is_err());
+    assert!(method(&format!("{jwk}{multibase}")).is_err());
+}
+
+#[test]
 fn generative_resolution_metadata() {
     let resolution = resolve_from_account(&example_did(), None);
     assert_eq!(
@@ -67,7 +94,7 @@ fn invalid_did_resolves_to_error_result() {
         Some("invalidDid")
     );
     assert_eq!(resolution.document, None);
-    // Unsuccessful resolution: didDocumentMetadata is the empty structure.
+    // In an unsuccessful resolution didDocumentMetadata is the empty structure.
     assert_eq!(
         serde_json::to_value(&resolution.document_metadata).unwrap(),
         serde_json::json!({})

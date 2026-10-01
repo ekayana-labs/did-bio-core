@@ -8,12 +8,14 @@ use crate::error::Error;
 
 /// Multicodec key codecs used by `did:bio` verification methods.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum KeyCodec {
-    /// `ed25519-pub`, multicodec `0xed`; 32 byte key; `z6Mk...`.
+    /// `ed25519-pub`, multicodec `0xed`, a 32 byte key encoded as `z6Mk...`.
     Ed25519Pub,
-    /// `x25519-pub`, multicodec `0xec`; 32 byte key; `z6LS...`.
+    /// `x25519-pub`, multicodec `0xec`, a 32 byte key encoded as `z6LS...`.
     X25519Pub,
-    /// `secp256k1-pub`, multicodec `0xe7`; 33 byte compressed key; `zQ3s...`.
+    /// `secp256k1-pub`, multicodec `0xe7`, a 33 byte compressed key encoded
+    /// as `zQ3s...`.
     Secp256k1Pub,
 }
 
@@ -36,8 +38,8 @@ impl KeyCodec {
         }
     }
 
-    /// The characteristic multibase prefix of encoded keys (informative,
-    /// spec Section 5.2 table).
+    /// The characteristic multibase prefix of encoded keys. It is
+    /// informative (spec Section 5.2 table).
     pub const fn multibase_prefix(self) -> &'static str {
         match self {
             KeyCodec::Ed25519Pub => "z6Mk",
@@ -56,7 +58,8 @@ impl KeyCodec {
     }
 }
 
-/// Append `value` to `out` as an unsigned varint (multiformats LEB128).
+/// Append `value` to `out` as an unsigned varint, the multiformats LEB128
+/// form.
 fn write_uvarint(out: &mut Vec<u8>, mut value: u64) {
     loop {
         let byte = (value & 0x7f) as u8;
@@ -70,12 +73,18 @@ fn write_uvarint(out: &mut Vec<u8>, mut value: u64) {
 }
 
 /// Read an unsigned varint from the front of `bytes`, returning the value
-/// and the number of bytes consumed.
+/// and the number of bytes consumed. The encoding must be minimal, as
+/// multiformats requires, so a key has exactly one Multikey form.
 fn read_uvarint(bytes: &[u8]) -> Result<(u64, usize), Error> {
     let mut value: u64 = 0;
     for (i, &byte) in bytes.iter().enumerate().take(9) {
         value |= u64::from(byte & 0x7f) << (7 * i);
         if byte & 0x80 == 0 {
+            if i > 0 && byte == 0 {
+                return Err(Error::InvalidMultikey(
+                    "multicodec varint is not minimally encoded",
+                ));
+            }
             return Ok((value, i + 1));
         }
     }
@@ -143,7 +152,11 @@ mod tests {
         assert_eq!(out, [0xed, 0x01]);
         assert_eq!(read_uvarint(&[0xed, 0x01]).unwrap(), (0xed, 2));
         assert_eq!(read_uvarint(&[0x7f]).unwrap(), (0x7f, 1));
+        assert_eq!(read_uvarint(&[0x00]).unwrap(), (0, 1));
         assert!(read_uvarint(&[0x80]).is_err());
+        // 0xed in three bytes, and 0 in two: valid LEB128, not minimal.
+        assert!(read_uvarint(&[0xed, 0x81, 0x00]).is_err());
+        assert!(read_uvarint(&[0x80, 0x00]).is_err());
     }
 
     #[test]
@@ -173,6 +186,17 @@ mod tests {
         ));
         assert!(decode("m6Mk").is_err());
         assert!(decode("z0OIl").is_err());
+        // an overlong prefix names the same codec, so one key would have
+        // two Multikey strings
+        let mut overlong = vec![0xed, 0x81, 0x00];
+        overlong.extend_from_slice(&[7u8; 32]);
+        let overlong = format!("z{}", bs58::encode(overlong).into_string());
+        assert!(matches!(
+            decode(&overlong),
+            Err(Error::InvalidMultikey(
+                "multicodec varint is not minimally encoded"
+            ))
+        ));
         // ed25519 prefix but 31 key bytes
         let mut bytes = vec![0xed, 0x01];
         bytes.extend_from_slice(&[0u8; 31]);
