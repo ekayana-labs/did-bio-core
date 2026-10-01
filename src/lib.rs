@@ -94,6 +94,7 @@ pub use error::{resolution_error, Error};
 #[cfg(feature = "pda")]
 pub use pda::{
     find_did_account_address, find_key_buffer_address, find_owned_subject, find_program_address,
+    try_find_program_address,
 };
 pub use resolve::{
     deactivated_document, generative_document, materialize_document, resolve_from_account,

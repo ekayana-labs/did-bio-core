@@ -6,11 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `try_find_program_address`, with the `MAX_SEEDS` and `MAX_SEED_LEN`
+  limits the runtime applies.
+
 ### Changed
 
 - Decoding refuses account states the registry never writes, such as
   trailing bytes, invalid fragments or unknown flag bits.
 - `serde_json` is a dev-dependency only.
+- `find_program_address` panics on seeds the runtime refuses and tries
+  bumps from 255 down to 1, as the SDK does.
 - `verify_for_relationship` reports a missing method as
   `Error::VerificationMethodNotFound` and a missing relationship as
   `Error::RelationshipNotGranted`.

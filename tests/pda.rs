@@ -7,7 +7,7 @@ use common::{example_did, OWNED_AUTHORITY, OWNED_NONCE, OWNED_SUBJECT};
 use did_bio_core::account::{KEY_BUFFER_SEED, OWNED_SUBJECT_SEED, PROGRAM_ID};
 use did_bio_core::{
     find_did_account_address, find_key_buffer_address, find_owned_subject, find_program_address,
-    is_on_curve, BioDid, Network,
+    is_on_curve, try_find_program_address, BioDid, Network,
 };
 
 #[test]
@@ -82,4 +82,22 @@ fn owned_subject_matches_the_program() {
     assert_eq!(did.subject, subject);
     assert!(!did.is_key_subject());
     assert_eq!(did.to_string().parse::<BioDid>().unwrap(), did);
+}
+
+#[test]
+fn seeds_the_runtime_refuses_find_no_address() {
+    let long = [1u8; 33];
+    assert_eq!(try_find_program_address(&[&long], &PROGRAM_ID), None);
+    assert!(try_find_program_address(&[&long[..32]], &PROGRAM_ID).is_some());
+
+    // Sixteen seeds leave no room for the bump.
+    let seeds = [b"s".as_slice(); 16];
+    assert_eq!(try_find_program_address(&seeds, &PROGRAM_ID), None);
+    assert!(try_find_program_address(&seeds[..15], &PROGRAM_ID).is_some());
+}
+
+#[test]
+#[should_panic(expected = "Unable to find a viable program address bump seed")]
+fn find_program_address_panics_where_the_sdk_does() {
+    find_program_address(&[&[1u8; 33]], &PROGRAM_ID);
 }
